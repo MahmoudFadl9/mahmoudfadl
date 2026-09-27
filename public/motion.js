@@ -60,39 +60,43 @@ export function startMotion({lang,enabled,onFloat}){
       node.className=`float-object float-${shape}`;
       node.style.left=`${x*100}%`;
       node.style.top=`${y*100}%`;
-      node.style.setProperty('--float-delay',`${index*-.85}s`);
       node.innerHTML='<i></i>';
       layer.append(node);
-      return {node,near:false,rx:0,ry:0};
+      return {node,x,y,phase:index*1.73,near:false,rx:0,ry:0};
     });
     document.body.append(layer);
     cleaners.push(()=>layer.remove());
+    let point=null,frame=0,lastFrame=performance.now();
     if(fine){
-      let floatFrame=0,point;
-      const repel=event=>{
-        point={x:event.clientX,y:event.clientY};
-        if(floatFrame)return;
-        floatFrame=requestAnimationFrame(()=>{
-          floatFrame=0;
-          for(const object of objects){
-            const rect=object.node.firstElementChild.getBoundingClientRect();
-            const dx=rect.left+rect.width/2-object.rx-point.x;
-            const dy=rect.top+rect.height/2-object.ry-point.y;
-            const distance=Math.hypot(dx,dy),near=distance<185;
-            const force=near?Math.pow(1-distance/185,1.25)*165:0;
-            const angle=distance?Math.atan2(dy,dx):0;
-            object.rx=Math.cos(angle)*force;
-            object.ry=Math.sin(angle)*force;
-            object.node.style.setProperty('--repel-x',`${object.rx.toFixed(1)}px`);
-            object.node.style.setProperty('--repel-y',`${object.ry.toFixed(1)}px`);
-            if(near&&!object.near)onFloat?.();
-            object.near=near;
-          }
-        });
-      };
-      on(window,'pointermove',repel,{passive:true});
-      cleaners.push(()=>cancelAnimationFrame(floatFrame));
+      on(window,'pointermove',event=>{if(event.pointerType!=='touch')point={x:event.clientX,y:event.clientY};},{passive:true});
+      on(document,'pointerleave',()=>{point=null;});
     }
+    const animate=time=>{
+      const dt=Math.min(.05,Math.max(.001,(time-lastFrame)/1000));
+      lastFrame=time;
+      for(const object of objects){
+        const driftX=Math.sin(time*.00042+object.phase)*25+Math.sin(time*.00019+object.phase)*9;
+        const driftY=Math.cos(time*.00036+object.phase)*24;
+        const baseX=object.x*innerWidth+driftX,baseY=object.y*innerHeight+driftY;
+        const dx=point?baseX-point.x:0,dy=point?baseY-point.y:0;
+        const distance=point?Math.hypot(dx,dy):Infinity;
+        const near=distance<185;
+        const force=near?Math.pow(1-distance/185,1.3)*165:0;
+        const angle=distance>1?Math.atan2(dy,dx):object.phase;
+        const targetX=Math.cos(angle)*force,targetY=Math.sin(angle)*force;
+        const easing=1-Math.exp(-dt*(near?12:5));
+        object.rx+=(targetX-object.rx)*easing;
+        object.ry+=(targetY-object.ry)*easing;
+        object.node.style.transform=`translate3d(${(driftX+object.rx).toFixed(1)}px,${(driftY+object.ry).toFixed(1)}px,0)`;
+        object.node.style.setProperty('--repel-x',`${object.rx.toFixed(1)}px`);
+        object.node.style.setProperty('--repel-y',`${object.ry.toFixed(1)}px`);
+        if(near&&!object.near)onFloat?.(baseX/innerWidth*2-1);
+        object.near=near;
+      }
+      frame=requestAnimationFrame(animate);
+    };
+    frame=requestAnimationFrame(animate);
+    cleaners.push(()=>cancelAnimationFrame(frame));
   }
 
   if(fine&&!reduced){

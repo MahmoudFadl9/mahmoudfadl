@@ -20,12 +20,13 @@ const safeUrl=value=>{try{const url=new URL(value,location.origin);return ['http
 const soundIcon=()=>soundEnabled
   ?'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6a8 8 0 0 1 0 12"/></svg>'
   :'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="m17 9 5 6m0-6-5 6"/></svg>';
+const soundStateLabel=()=>soundEnabled?(lang==='ar'?'الصوت يعمل':'Sound on'):(lang==='ar'?'الصوت مكتوم':'Sound off');
 const soundLabel=()=>soundEnabled?(lang==='ar'?'إيقاف الصوت':'Turn sound off'):(lang==='ar'?'تشغيل الصوت':'Turn sound on');
 function syncSoundToggle(){
   const button=document.querySelector('.sound-toggle');
   if(!button)return;
   button.disabled=!(window.AudioContext||window.webkitAudioContext);
-  button.innerHTML=soundIcon();
+  button.innerHTML=`${soundIcon()}<span>${soundStateLabel()}</span>`;
   button.setAttribute('aria-pressed',String(soundEnabled));
   const label=button.disabled?(lang==='ar'?'الصوت غير مدعوم':'Sound unavailable'):soundLabel();
   button.setAttribute('aria-label',label);
@@ -39,14 +40,14 @@ function audio(){
     if(!audioContext){
       audioContext=new AudioContextClass();
       masterGain=audioContext.createGain();
-      masterGain.gain.value=.65;
+      masterGain.gain.value=.85;
       masterGain.connect(audioContext.destination);
     }
     if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
     return audioContext;
   }catch{return null;}
 }
-function tone({from,to,duration,peak,attack=0.006,delay=0,type='sine'}){
+function tone({from,to,duration,peak,attack=0.006,delay=0,type='sine',pan=0}){
   const context=audio();
   if(!context)return;
   const now=context.currentTime+delay;
@@ -55,9 +56,18 @@ function tone({from,to,duration,peak,attack=0.006,delay=0,type='sine'}){
   oscillator.frequency.setValueAtTime(from,now);
   oscillator.frequency.exponentialRampToValueAtTime(to,now+duration);
   gain.gain.setValueAtTime(0.0001,now);
-  gain.gain.exponentialRampToValueAtTime(peak*.35,now+attack);
+  gain.gain.exponentialRampToValueAtTime(peak,now+attack);
   gain.gain.exponentialRampToValueAtTime(0.0001,now+duration);
-  oscillator.connect(gain).connect(masterGain);
+  oscillator.connect(gain);
+  if(context.createStereoPanner){
+    const position=context.createStereoPanner();
+    position.pan.value=Math.max(-1,Math.min(1,pan));
+    gain.connect(position).connect(masterGain);
+    oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();position.disconnect();};
+  }else{
+    gain.connect(masterGain);
+    oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();};
+  }
   oscillator.start(now);
   oscillator.stop(now+duration+0.005);
 }
@@ -66,15 +76,20 @@ function startAmbient(){
   if(!context||document.hidden||ambientVoices.length)return;
   ambientGain=context.createGain();
   ambientGain.gain.setValueAtTime(0,context.currentTime);
-  ambientGain.gain.linearRampToValueAtTime(.012,context.currentTime+4);
+  ambientGain.gain.linearRampToValueAtTime(.18,context.currentTime+1.8);
   ambientGain.connect(masterGain);
-  // A soft, slowly breathing room tone, rather than a sequence of alert sounds.
-  const chords=[[55,82.41,110],[58.27,87.31,116.54],[49,73.42,98],[55,82.41,110]];
+  // A cinematic pad and filtered air create a room tone with slow musical changes.
+  const chords=[
+    [55,110,164.81,220,261.63,329.63],
+    [58.27,116.54,174.61,233.08,277.18,349.23],
+    [49,98,146.83,196,233.08,293.66],
+    [55,110,164.81,220,261.63,329.63]
+  ];
   chords[0].forEach((frequency,index)=>{
     const voice=context.createOscillator(),level=context.createGain();
     voice.type='sine';
     voice.frequency.value=frequency;
-    level.gain.value=index===0?.42:index===1?.22:.16;
+    level.gain.value=[.12,.17,.17,.18,.11,.12][index];
     voice.connect(level).connect(ambientGain);
     voice.start();
     ambientVoices.push(voice);
@@ -85,13 +100,13 @@ function startAmbient(){
     const samples=buffer.getChannelData(0);
     let softened=0;
     for(let i=0;i<length;i++){
-      softened=(softened+(Math.random()*2-1)*.035)/1.035;
+      softened=softened*.92+(Math.random()*2-1)*.08;
       samples[i]=softened;
     }
     const source=context.createBufferSource(),filter=context.createBiquadFilter(),level=context.createGain();
     source.buffer=buffer;source.loop=true;
-    filter.type='lowpass';filter.frequency.value=850;
-    level.gain.value=.11;
+    filter.type='lowpass';filter.frequency.value=1050;
+    level.gain.value=.8;
     source.connect(filter).connect(level).connect(ambientGain);
     source.start();ambientTexture=source;
   }
@@ -103,7 +118,8 @@ function startAmbient(){
     ambientVoices.forEach((voice,index)=>voice.frequency.exponentialRampToValueAtTime(chords[chord][index],now+7));
     ambientGain.gain.cancelScheduledValues(now);
     ambientGain.gain.setValueAtTime(ambientGain.gain.value,now);
-    ambientGain.gain.linearRampToValueAtTime(chord%2?.009:.012,now+6);
+    ambientGain.gain.linearRampToValueAtTime(chord%2?.15:.18,now+7);
+    if(chord%2)tone({from:440,to:554.37,duration:1.45,peak:.028,attack:.42,delay:2.2,pan:chord===1?-.55:.55});
   },11500);
 }
 function stopAmbient(){
@@ -124,53 +140,58 @@ function playHover(){
   const now=performance.now();
   if(now-lastHoverAt<170)return;
   lastHoverAt=now;
-  tone({from:720,to:540,duration:0.075,peak:0.026,attack:0.006});
-  tone({from:1080,to:810,duration:0.095,peak:0.009,attack:0.009,delay:0.012});
+  tone({from:680,to:410,duration:0.11,peak:0.06,attack:0.008});
+  tone({from:1020,to:720,duration:0.13,peak:0.025,attack:0.011,delay:0.012});
 }
 function playTap(){
-  tone({from:210,to:92,duration:0.105,peak:0.055,attack:0.005});
-  tone({from:660,to:330,duration:0.045,peak:0.012,attack:0.003});
+  tone({from:260,to:105,duration:0.16,peak:0.13,attack:0.004});
+  tone({from:780,to:380,duration:0.095,peak:0.065,attack:0.004});
 }
 function playSwell(){
-  tone({from:220,to:390,duration:0.48,peak:0.024,attack:0.13});
-  tone({from:330,to:590,duration:0.42,peak:0.013,attack:0.15,delay:0.05});
+  tone({from:170,to:420,duration:0.62,peak:0.075,attack:0.19});
+  tone({from:260,to:650,duration:0.54,peak:0.035,attack:0.16,delay:0.06});
 }
 function playArrival(){
-  tone({from:310,to:470,duration:0.18,peak:0.014,attack:0.055});
-  tone({from:465,to:705,duration:0.2,peak:0.008,attack:0.065,delay:0.045});
+  tone({from:240,to:460,duration:0.35,peak:0.055,attack:0.09});
+  tone({from:360,to:690,duration:0.36,peak:0.026,attack:0.12,delay:0.06});
 }
 function playNavigate(){
-  tone({from:480,to:740,duration:0.085,peak:0.015,attack:0.009});
-  tone({from:720,to:980,duration:0.07,peak:0.005,attack:0.012,delay:0.035});
+  tone({from:400,to:650,duration:0.13,peak:0.065,attack:0.014});
+  tone({from:600,to:920,duration:0.12,peak:0.025,attack:0.02,delay:0.04});
 }
 function playReveal(open){
-  tone({from:open?290:520,to:open?490:280,duration:0.19,peak:0.019,attack:0.035});
-  tone({from:open?440:660,to:open?660:390,duration:0.15,peak:0.006,attack:0.035,delay:0.035});
+  tone({from:open?250:520,to:open?520:260,duration:0.26,peak:0.07,attack:0.045});
+  tone({from:open?380:720,to:open?720:380,duration:0.22,peak:0.028,attack:0.04,delay:0.04});
 }
 function playTransport(playing){
-  tone({from:playing?360:550,to:playing?630:320,duration:0.13,peak:0.017,attack:0.018});
+  tone({from:playing?330:560,to:playing?650:300,duration:0.18,peak:0.07,attack:0.024});
 }
 function playChoice(){
-  tone({from:430,to:575,duration:0.09,peak:0.014,attack:0.008});
-  tone({from:645,to:770,duration:0.075,peak:0.004,attack:0.012,delay:0.018});
+  tone({from:420,to:620,duration:0.14,peak:0.055,attack:0.013});
+  tone({from:630,to:840,duration:0.12,peak:0.019,attack:0.02,delay:0.025});
 }
 let lastFloatSound=0;
-function playFloat(){
+function playFloat(pan=0){
   const now=performance.now();
   if(now-lastFloatSound<650)return;
   lastFloatSound=now;
-  tone({from:360,to:300,duration:0.22,peak:0.004,attack:0.06});
+  tone({from:520,to:300,duration:0.32,peak:0.048,attack:0.055,pan});
+  tone({from:780,to:460,duration:0.27,peak:0.019,attack:0.075,delay:0.035,pan});
 }
-function playClose(){tone({from:410,to:230,duration:0.11,peak:0.013,attack:0.012});}
-function unlockAudio(){
+function playClose(){tone({from:410,to:230,duration:0.14,peak:0.05,attack:0.015});}
+function unlockAudio(event){
   if(audioUnlocked)return;
+  if(soundEnabled){
+    const toggle=event?.target?.closest?.('.sound-toggle');
+    if(toggle)toggle.dataset.startedSound='true';
+  }
   audioUnlocked=true;
   document.querySelector('.sound-entry')?.remove();
-  if(soundEnabled){audio();startAmbient();}
+  if(soundEnabled){audio();startAmbient();playArrival();}
 }
 document.addEventListener('pointerdown',unlockAudio,{once:true,capture:true});
 document.addEventListener('touchend',unlockAudio,{once:true,capture:true});
-document.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' ')unlockAudio();},{capture:true});
+document.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' ')unlockAudio(event);},{capture:true});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){audioContext?.suspend().catch(()=>{});}
   else if(soundEnabled&&audioUnlocked){audioContext?.resume().catch(()=>{});startAmbient();}
@@ -251,7 +272,7 @@ function render(){
   const mobileNav=`${headerNav}<a href="#contact">${esc(t.cta)}</a>`;
   app.innerHTML=`
 <a class="skip" href="#work">${esc(d.skip)}</a>
-<header><a class="brand" href="#"><img class="brand-mark" src="/assets/mahmoud-mark-transparent.svg" alt=""><span>${esc(t.name)}<small>${esc(d.tagline)}</small></span></a><nav aria-label="${esc(t.navWork)}">${headerNav}</nav><div class="header-actions"><button class="effects-toggle" type="button" aria-pressed="${effectsEnabled}" aria-label="${effectsEnabled?(lang==='ar'?'إيقاف التأثيرات':'Turn effects off'):(lang==='ar'?'تشغيل التأثيرات':'Turn effects on')}" title="${effectsEnabled?(lang==='ar'?'إيقاف التأثيرات':'Turn effects off'):(lang==='ar'?'تشغيل التأثيرات':'Turn effects on')}">${icon('spark')} <span>${effectsEnabled?(lang==='ar'?'الحركة تعمل':'Motion on'):(lang==='ar'?'شغّل الحركة':'Motion off')}</span></button><button class="sound-toggle" type="button" aria-pressed="${soundEnabled}" aria-label="${soundLabel()}" title="${soundLabel()}">${soundIcon()}</button><button class="lang" type="button" aria-label="${lang==='en'?'التبديل إلى العربية':'Switch to English'}">${lang==='en'?'العربية':'EN'}</button><a class="pill small" href="#contact">${esc(t.cta)} ${icon('arrow')}</a></div></header>
+<header><a class="brand" href="#"><img class="brand-mark" src="/assets/mahmoud-mark-transparent.svg" alt=""><span>${esc(t.name)}<small>${esc(d.tagline)}</small></span></a><nav aria-label="${esc(t.navWork)}">${headerNav}</nav><div class="header-actions"><button class="effects-toggle" type="button" aria-pressed="${effectsEnabled}" aria-label="${effectsEnabled?(lang==='ar'?'إيقاف التأثيرات':'Turn effects off'):(lang==='ar'?'تشغيل التأثيرات':'Turn effects on')}" title="${effectsEnabled?(lang==='ar'?'إيقاف التأثيرات':'Turn effects off'):(lang==='ar'?'تشغيل التأثيرات':'Turn effects on')}">${icon('spark')} <span>${effectsEnabled?(lang==='ar'?'الحركة تعمل':'Motion on'):(lang==='ar'?'شغّل الحركة':'Motion off')}</span></button><button class="sound-toggle" type="button" aria-pressed="${soundEnabled}" aria-label="${soundLabel()}" title="${soundLabel()}">${soundIcon()}<span>${soundStateLabel()}</span></button><button class="lang" type="button" aria-label="${lang==='en'?'التبديل إلى العربية':'Switch to English'}">${lang==='en'?'العربية':'EN'}</button><a class="pill small" href="#contact">${esc(t.cta)} ${icon('arrow')}</a></div></header>
 <nav class="mobile-nav" aria-label="${esc(t.cta)}">${mobileNav}</nav>
 <main>
 <section class="hero"><div class="hero-copy"><p class="eyebrow"><i></i>${esc(t.eyebrow)}</p><h1>${esc(t.heroTop)}<br><em>${esc(t.heroBottom)}</em></h1><p class="intro">${esc(t.intro)}</p><div class="actions"><a class="pill" href="#work">${esc(t.viewWork)} ${icon('down')}</a><a class="text-link" href="${safeUrl(content.calendar)}" target="_blank" rel="noopener">${icon('calendar')} ${esc(t.book)} ${icon('arrow')}</a></div>${soundEnabled&&!audioUnlocked?`<button class="sound-entry" type="button">${lang==='ar'?'✦ المس لتبدأ التجربة بالصوت':'✦ Tap to enter with sound'}</button>`:''}</div>
@@ -290,12 +311,17 @@ function wire(){
     app.classList.remove('site-enter');
     if(effectsEnabled)requestAnimationFrame(()=>app.classList.add('site-enter'));
   };
-  document.querySelector('.sound-toggle').onclick=()=>{
+  document.querySelector('.sound-toggle').onclick=event=>{
+    if(event.currentTarget.dataset.startedSound==='true'){
+      delete event.currentTarget.dataset.startedSound;
+      soundStatus.textContent=lang==='ar'?'بدأت الأجواء الصوتية':'Soundscape started';
+      return;
+    }
     soundEnabled=!soundEnabled;
     localStorage.setItem('portfolio-sound',soundEnabled?'on':'off');
     if(soundEnabled){
       unlockAudio();
-      if(masterGain)masterGain.gain.setTargetAtTime(1,audioContext.currentTime,0.01);
+      if(masterGain)masterGain.gain.setTargetAtTime(.85,audioContext.currentTime,0.01);
       startAmbient();
       playArrival();
     }else{

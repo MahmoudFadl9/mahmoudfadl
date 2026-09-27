@@ -194,17 +194,19 @@ footer .brand-mark{width:58px;height:34px}
 #showreelDialog video{display:block;width:100%;max-height:78vh;aspect-ratio:16/9;object-fit:contain}
 #showreelDialog .close{margin:0 0 12px 12px}
 
-/* Opt-in Web Audio controls stay small and readable beside the language switch. */
-.sound-toggle{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;padding:0;border:1px solid #b7e9d677;border-radius:50%;background:#b7e9d619;color:var(--accent);transition:background .18s ease,border-color .18s ease,transform .18s ease}
+/* The sound state stays visible, including when a past mute preference is saved. */
+.sound-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:0 10px;border:1px solid #b7e9d677;border-radius:30px;background:#b7e9d619;color:var(--accent);white-space:nowrap;font-size:10px;transition:background .18s ease,border-color .18s ease,transform .18s ease}
 .sound-toggle:hover{background:#b7e9d62b;border-color:var(--accent);transform:translateY(-2px)}
 .sound-toggle[aria-pressed="false"]{color:#a9b8ae;background:transparent;border-color:#ffffff43}
 .sound-toggle svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.sound-toggle span{display:inline-block}
 .sound-toggle:disabled{opacity:.45;cursor:not-allowed}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-@media(max-width:700px){.sound-toggle{flex-basis:34px;width:34px;height:34px}}
+@media(max-width:900px){.sound-toggle{flex:0 0 34px;width:34px;height:34px;padding:0}.sound-toggle span{display:none}}
 @media(max-width:420px){header{gap:8px}.header-actions{gap:5px}.sound-toggle{flex-basis:30px;width:30px;height:30px}.header-actions .pill.small{padding:8px 9px;gap:6px}.header-actions .lang{font-size:12px}}
 
-/* Keep the native mouse pointer; its original follower stays at the same point. */
+/* A branded mint-edged dark pointer and a separate, centered follower. */
+@media(pointer:fine){html,body{cursor:url('/assets/portfolio-cursor.svg') 4 4,auto}a,button,summary,[role="button"]{cursor:url('/assets/portfolio-cursor.svg') 4 4,pointer}input,textarea,select,[contenteditable="true"]{cursor:text}}
 .pointer-aura{--aura-scale:1;transition:transform .08s ease-out,opacity .18s ease}
 .pointer-aura.on-control{--aura-scale:1.48;opacity:.67;box-shadow:0 0 25px #a4f4d580,inset 0 0 12px #b7e9d650}
 .pointer-aura.on-watch{--aura-scale:.82;opacity:.25}
@@ -231,14 +233,14 @@ footer .brand-mark{width:58px;height:34px}
 
 /* Independent, lightweight shapes drift above the depth scene and flee the pointer. */
 .float-layer{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;contain:strict}
-.float-object{position:absolute;width:29px;height:29px;opacity:.62;transform:translate3d(var(--repel-x,0px),var(--repel-y,0px),0);transition:transform .25s cubic-bezier(.16,.84,.25,1);will-change:transform}
-.float-object i{display:block;width:100%;height:100%;border:1px solid #b7e9d681;background:linear-gradient(135deg,#d9fff039,#8adacb0c);box-shadow:0 0 20px #9de9d337,inset 0 0 14px #c7fff129;animation:float-drift 10s ease-in-out var(--float-delay) infinite alternate}
-.float-object:nth-child(3n) i{animation-duration:13s}
-.float-object:nth-child(3n + 1) i{animation-duration:8s}
+.float-object{position:absolute;width:29px;height:29px;opacity:.62;will-change:transform}
+.float-object i{display:block;width:100%;height:100%;border:1px solid #b7e9d681;background:linear-gradient(135deg,#d9fff039,#8adacb0c);box-shadow:0 0 20px #9de9d337,inset 0 0 14px #c7fff129;animation:float-shimmer 5s ease-in-out infinite alternate}
+.float-object:nth-child(3n) i{animation-duration:7s}
+.float-object:nth-child(3n + 1) i{animation-duration:6s}
 .float-ring i{border-radius:50%;background:transparent;border-width:2px}
 .float-diamond i{width:21px;height:21px;transform:rotate(45deg);border-radius:4px}
 .float-spark i{width:8px;height:36px;margin-left:10px;border-radius:100%;filter:blur(.3px)}
-@keyframes float-drift{from{translate:-22px -20px;rotate:-18deg;opacity:.5}to{translate:28px 30px;rotate:23deg;opacity:1}}
+@keyframes float-shimmer{from{rotate:-15deg;opacity:.52}to{rotate:20deg;opacity:1}}
 @media(max-width:700px){.float-object{opacity:.3}.float-object:nth-child(2n){display:none}.sound-entry{font-size:10px}}
 html.effects-off .float-layer{display:none}
 
