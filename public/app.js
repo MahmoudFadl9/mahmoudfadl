@@ -13,7 +13,7 @@ const systemReducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches
 const savedEffects=localStorage.getItem('portfolio-effects');
 let effectsEnabled=savedEffects==='on'||(savedEffects!=='off'&&!systemReducedMotion);
 let soundEnabled=localStorage.getItem('portfolio-sound')!=='off';
-let audioUnlocked=false,audioContext,masterGain,lastHoverAt=0;
+let audioUnlocked=false,audioContext,masterGain,lastHoverAt=0,ambientVoices=[],ambientGain,ambientTimer;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeUrl=value=>{try{const url=new URL(value,location.origin);return ['http:','https:'].includes(url.protocol)?esc(value):'#';}catch{return '#';}};
 
@@ -39,7 +39,7 @@ function audio(){
     if(!audioContext){
       audioContext=new AudioContextClass();
       masterGain=audioContext.createGain();
-      masterGain.gain.value=1;
+      masterGain.gain.value=.78;
       masterGain.connect(audioContext.destination);
     }
     if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
@@ -61,12 +61,48 @@ function tone({from,to,duration,peak,attack=0.006,delay=0,type='sine'}){
   oscillator.start(now);
   oscillator.stop(now+duration+0.005);
 }
+function startAmbient(){
+  const context=audio();
+  if(!context||document.hidden||ambientVoices.length)return;
+  ambientGain=context.createGain();
+  ambientGain.gain.setValueAtTime(0,context.currentTime);
+  ambientGain.gain.linearRampToValueAtTime(.018,context.currentTime+2.4);
+  ambientGain.connect(masterGain);
+  const chords=[[110,164.81,220,329.63],[116.54,174.61,233.08,349.23],[98,146.83,196,293.66],[110,164.81,220,329.63]];
+  chords[0].forEach((frequency,index)=>{
+    const voice=context.createOscillator(),level=context.createGain();
+    voice.type=index===0?'triangle':'sine';
+    voice.frequency.value=frequency;
+    level.gain.value=index===0?.3:index===3?.38:.58;
+    voice.connect(level).connect(ambientGain);
+    voice.start();
+    ambientVoices.push(voice);
+  });
+  let chord=0;
+  ambientTimer=setInterval(()=>{
+    if(!soundEnabled||document.hidden)return;
+    chord=(chord+1)%chords.length;
+    const now=context.currentTime;
+    ambientVoices.forEach((voice,index)=>voice.frequency.exponentialRampToValueAtTime(chords[chord][index],now+3.2));
+  },7600);
+}
+function stopAmbient(){
+  clearInterval(ambientTimer);ambientTimer=undefined;
+  if(!audioContext||!ambientVoices.length)return;
+  const voices=ambientVoices;
+  ambientVoices=[];
+  ambientGain.gain.cancelScheduledValues(audioContext.currentTime);
+  ambientGain.gain.setTargetAtTime(0,audioContext.currentTime,.12);
+  voices.forEach(voice=>{voice.stop(audioContext.currentTime+.7);voice.onended=()=>voice.disconnect();});
+  ambientGain=undefined;
+}
 function playHover(){
   if(!soundEnabled)return;
   const now=performance.now();
-  if(now-lastHoverAt<75)return;
+  if(now-lastHoverAt<95)return;
   lastHoverAt=now;
-  tone({from:760,to:620,duration:0.035,peak:0.009,attack:0.004});
+  tone({from:720,to:540,duration:0.075,peak:0.026,attack:0.006});
+  tone({from:1080,to:810,duration:0.095,peak:0.009,attack:0.009,delay:0.012});
 }
 function playTap(){
   tone({from:210,to:92,duration:0.105,peak:0.055,attack:0.005});
@@ -95,21 +131,34 @@ function playChoice(){
   tone({from:430,to:575,duration:0.09,peak:0.014,attack:0.008});
   tone({from:645,to:770,duration:0.075,peak:0.004,attack:0.012,delay:0.018});
 }
+let lastFloatSound=0;
+function playFloat(){
+  const now=performance.now();
+  if(now-lastFloatSound<650)return;
+  lastFloatSound=now;
+  tone({from:620,to:390,duration:0.17,peak:0.01,attack:0.035});
+}
 function playClose(){tone({from:410,to:230,duration:0.11,peak:0.013,attack:0.012});}
 function unlockAudio(){
   if(audioUnlocked)return;
   audioUnlocked=true;
-  if(soundEnabled){audio();playArrival();}
+  document.querySelector('.sound-entry')?.remove();
+  if(soundEnabled){audio();startAmbient();playArrival();}
 }
 document.addEventListener('pointerdown',unlockAudio,{once:true,capture:true});
+document.addEventListener('touchend',unlockAudio,{once:true,capture:true});
 document.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' ')unlockAudio();},{capture:true});
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){audioContext?.suspend().catch(()=>{});}
+  else if(soundEnabled&&audioUnlocked){audioContext?.resume().catch(()=>{});startAmbient();}
+});
 app.addEventListener('pointerover',event=>{
   if(event.pointerType!=='mouse'&&event.pointerType!=='pen')return;
   const control=event.target.closest('header nav a,header .pill,.mobile-nav a,.hero .actions a,.showreel-open,.project-archive>summary,.faq summary');
   if(control&&!control.contains(event.relatedTarget))playHover();
 });
 
-let content,lang=initialLang();
+let content,lang=initialLang(),briefChoices=[],briefStepIndex=0;
 
 function initialLang(){
   const requested=new URLSearchParams(location.search).get('lang');
@@ -136,11 +185,33 @@ function decorations(t){
 }
 
 function projectCard(project,index,t){
-  return `<button class="project-card" type="button" data-project="${index}" data-cursor="${lang==='ar'?'شاهد':'VIEW'}" aria-label="${esc(project[lang].title)}"><div class="project-image"><img src="${safeUrl(project.image)}" alt="${esc(project[lang].subtitle||project.client)}" loading="lazy" decoding="async"><span class="client">${esc(project.client)}</span><span class="watch">${icon('play')} ${esc(t.play)}</span><span class="circle-arrow" aria-hidden="true">${icon('arrow')}</span></div><div class="project-caption"><div><h3>${esc(project[lang].title)}</h3><p>${esc(project[lang].subtitle)}</p></div><span class="project-number">${String(index+1).padStart(2,'0')}</span></div><span class="project-type">${esc(project.type)}</span></button>`;
+  return `<button class="project-card" type="button" data-project="${index}" data-cursor="${lang==='ar'?'شاهد':'WATCH'}" aria-label="${esc(project[lang].title)}"><div class="project-image"><img src="${safeUrl(project.image)}" alt="${esc(project[lang].subtitle||project.client)}" loading="lazy" decoding="async"><span class="client">${esc(project.client)}</span><span class="watch">${icon('play')} ${esc(t.play)}</span><span class="circle-arrow" aria-hidden="true">${icon('arrow')}</span></div><div class="project-caption"><div><h3>${esc(project[lang].title)}</h3><p>${esc(project[lang].subtitle)}</p></div><span class="project-number">${String(index+1).padStart(2,'0')}</span></div><span class="project-type">${esc(project.type)}</span></button>`;
 }
 
-function briefQuestions(t){
-  return (t.briefQuestions||[]).map((item,index)=>`<label class="brief-question"><span><b>${String(index+1).padStart(2,'0')}</b> ${esc(item.q)}</span><select name="answer${index+1}" required><option value="" selected disabled>${esc(t.chooseOption||'Choose one option')}</option>${item.options.map(option=>`<option value="${esc(option)}">${esc(option)}</option>`).join('')}</select></label>`).join('');
+function briefQuestion(t,step){
+  const base=t.briefQuestions[step];
+  const previous=briefChoices[step-1];
+  const branch=step>0?t.briefBranches?.[step-1]?.[previous]:null;
+  return {q:branch||base.q,options:base.options};
+}
+function renderBriefFlow(){
+  const t=content[lang],flow=document.querySelector('#briefFlow');
+  if(!flow)return;
+  const done=briefChoices.length===7&&briefStepIndex===7;
+  const count=done?7:briefStepIndex+1;
+  const back=briefStepIndex>0?`<button class="brief-back" type="button" data-brief-back>${lang==='ar'?'← السؤال السابق':'← Previous question'}</button>`:'';
+  if(done){
+    const recap=t.briefQuestions.map((_,index)=>{
+      const question=briefQuestion(t,index);
+      return `<li><span>${esc(question.q)}</span><strong>${esc(question.options[briefChoices[index]])}</strong></li>`;
+    }).join('');
+    flow.innerHTML=`<p class="brief-count">${lang==='ar'?'اكتمل المسار':'BRIEF COMPLETE'} · 07 / 07</p><div class="brief-progress" role="progressbar" aria-valuenow="7" aria-valuemin="0" aria-valuemax="7"><i style="width:100%"></i></div><h3>${lang==='ar'?'هذه صورة مشروعك حتى الآن':'Your project, at a glance'}</h3><ol class="brief-review">${recap}</ol>${back}`;
+  }else{
+    const question=briefQuestion(t,briefStepIndex);
+    flow.innerHTML=`<p class="brief-count">${lang==='ar'?'السؤال':'QUESTION'} ${String(count).padStart(2,'0')} / 07</p><div class="brief-progress" role="progressbar" aria-valuenow="${briefStepIndex}" aria-valuemin="0" aria-valuemax="7"><i style="width:${briefStepIndex/7*100}%"></i></div><h3 id="briefQuestion">${esc(question.q)}</h3><div class="brief-options" role="group" aria-labelledby="briefQuestion">${question.options.map((option,index)=>`<button type="button" data-brief-choice="${index}"${briefChoices[briefStepIndex]===index?' class="selected"':''}><span>${String(index+1).padStart(2,'0')}</span>${esc(option)}</button>`).join('')}</div>${back}`;
+  }
+  const extra=document.querySelector('.brief-extra'),send=document.querySelector('.brief-send');
+  extra.hidden=!done;send.hidden=!done;
 }
 
 function render(){
@@ -160,7 +231,7 @@ function render(){
 <header><a class="brand" href="#"><img class="brand-mark" src="/assets/mahmoud-mark-transparent.svg" alt=""><span>${esc(t.name)}<small>${esc(d.tagline)}</small></span></a><nav aria-label="${esc(t.navWork)}">${headerNav}</nav><div class="header-actions"><button class="effects-toggle" type="button" aria-pressed="${effectsEnabled}" aria-label="${effectsEnabled?(lang==='ar'?'إيقاف التأثيرات':'Turn effects off'):(lang==='ar'?'تشغيل التأثيرات':'Turn effects on')}" title="${effectsEnabled?(lang==='ar'?'إيقاف التأثيرات':'Turn effects off'):(lang==='ar'?'تشغيل التأثيرات':'Turn effects on')}">${icon('spark')} <span>${effectsEnabled?(lang==='ar'?'الحركة تعمل':'Motion on'):(lang==='ar'?'شغّل الحركة':'Motion off')}</span></button><button class="sound-toggle" type="button" aria-pressed="${soundEnabled}" aria-label="${soundLabel()}" title="${soundLabel()}">${soundIcon()}</button><button class="lang" type="button" aria-label="${lang==='en'?'التبديل إلى العربية':'Switch to English'}">${lang==='en'?'العربية':'EN'}</button><a class="pill small" href="#contact">${esc(t.cta)} ${icon('arrow')}</a></div></header>
 <nav class="mobile-nav" aria-label="${esc(t.cta)}">${mobileNav}</nav>
 <main>
-<section class="hero"><div class="hero-copy"><p class="eyebrow"><i></i>${esc(t.eyebrow)}</p><h1>${esc(t.heroTop)}<br><em>${esc(t.heroBottom)}</em></h1><p class="intro">${esc(t.intro)}</p><div class="actions"><a class="pill" href="#work">${esc(t.viewWork)} ${icon('down')}</a><a class="text-link" href="${safeUrl(content.calendar)}" target="_blank" rel="noopener">${icon('calendar')} ${esc(t.book)} ${icon('arrow')}</a></div></div>
+<section class="hero"><div class="hero-copy"><p class="eyebrow"><i></i>${esc(t.eyebrow)}</p><h1>${esc(t.heroTop)}<br><em>${esc(t.heroBottom)}</em></h1><p class="intro">${esc(t.intro)}</p><div class="actions"><a class="pill" href="#work">${esc(t.viewWork)} ${icon('down')}</a><a class="text-link" href="${safeUrl(content.calendar)}" target="_blank" rel="noopener">${icon('calendar')} ${esc(t.book)} ${icon('arrow')}</a></div>${soundEnabled&&!audioUnlocked?`<button class="sound-entry" type="button">${lang==='ar'?'✦ المس لتبدأ التجربة بالصوت':'✦ Tap to enter with sound'}</button>`:''}</div>
 <div class="hero-stage"><div class="orbits" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div></div>
 <div class="film-window"><div class="film-toolbar"><span>${esc(d.framesLabel)}</span><span>MF®</span></div><div class="film-media"><img class="film-poster" src="/assets/showreel-five.webp" alt=""><video id="heroVideo" muted loop playsinline preload="auto" poster="/assets/showreel-five.webp" ${effectsEnabled?'autoplay':''} src="/assets/showreel-five.mp4"></video><button class="showreel-open" type="button" aria-label="${lang==='ar'?'شاهد الشو ريل':'Watch the showreel'}">${icon('play')} <span>${lang==='ar'?'شاهد الشو ريل':'Watch showreel'}</span></button></div><div class="film-bottom"><span>${esc(d.filmCaption)}<br><b>${esc(d.filmCaptionText)}</b></span><button id="motion" type="button" aria-label="${esc(t.pause)}">${icon('pause')}</button></div></div>
 <div class="glass-badge"><span class="star" aria-hidden="true">✳</span><div>${esc(d.badgeTitle)}<br><strong>${esc(d.badgeSub)}</strong></div></div>
@@ -173,7 +244,7 @@ function render(){
 <section class="section process"><p class="eyebrow">04 / ${esc(d.processLabel)}</p><h2>${esc(t.processTitle)}</h2><div class="steps">${t.steps.map((step,index)=>`<article><span>0${index+1}</span><h3>${esc(step.title)}</h3><p>${esc(step.desc)}</p></article>`).join('')}</div></section>
 <section class="section faq"><h2>${esc(t.faqTitle)}</h2><div>${t.faqs.map(item=>`<details><summary>${esc(item.q)}<span aria-hidden="true">+</span></summary><p>${esc(item.a)}</p></details>`).join('')}</div></section>
 <section id="contact" class="section contact"><div><p class="eyebrow"><i></i> ${esc(t.cta)}</p><h2>${esc(t.contactTitle)}</h2><p>${esc(t.contactIntro)}</p><a class="email" href="mailto:${esc(content.email)}">${icon('mail')} ${esc(content.email)} ${icon('arrow')}</a><div class="actions"><a class="text-link" href="https://wa.me/${esc(String(content.phone).replace(/\D/g,''))}" target="_blank" rel="noopener">${icon('message')} ${esc(t.whatsapp)} ${icon('arrow')}</a><a class="text-link" href="${safeUrl(content.calendar)}" target="_blank" rel="noopener">${icon('calendar')} ${esc(t.book)} ${icon('arrow')}</a></div></div>
-<form id="brief"><div class="form-row"><label>${esc(t.yourName)}<input name="name" autocomplete="name" required maxlength="100"></label><label>${esc(t.yourEmail)}<input name="email" type="email" autocomplete="email" required maxlength="200"></label></div><fieldset class="brief-questions"><legend>${esc(t.yourBrief)}</legend><div class="brief-grid">${briefQuestions(t)}</div></fieldset><label>${esc(t.briefNote||'Anything else I should know? (optional)')}<textarea name="brief" placeholder="${esc(t.briefHint)}" rows="3" maxlength="1200"></textarea></label><div class="form-row"><label>${esc(t.yourDeadline)}<input name="deadline" type="date"></label><label>${esc(t.yourBudget)}<input name="budget" type="text" maxlength="60" inputmode="text"></label></div><button class="pill" type="submit">${esc(t.send)} ${icon('arrow')}</button><p id="formStatus" class="form-status" role="status" aria-live="polite"></p><small>${esc(t.formNote)}</small></form></section>
+<form id="brief"><div class="form-row"><label>${esc(t.yourName)}<input name="name" autocomplete="name" required maxlength="100"></label><label>${esc(t.yourEmail)}<input name="email" type="email" autocomplete="email" required maxlength="200"></label></div><fieldset class="brief-questions"><legend>${esc(t.yourBrief)}</legend><div id="briefFlow" aria-live="polite"></div></fieldset><div class="brief-extra" hidden><label>${esc(t.briefNote||'Anything else I should know? (optional)')}<textarea name="brief" placeholder="${esc(t.briefHint)}" rows="3" maxlength="1200"></textarea></label><div class="form-row"><label>${esc(t.yourDeadline)}<input name="deadline" type="date"></label><label>${esc(t.yourBudget)}<input name="budget" type="text" maxlength="60" inputmode="text"></label></div></div><button class="pill brief-send" type="submit" hidden>${esc(t.send)} ${icon('arrow')}</button><p id="formStatus" class="form-status" role="status" aria-live="polite"></p><small>${esc(t.formNote)}</small></form></section>
 </main><footer><a class="brand" href="#" aria-label="${esc(t.name)}"><img class="brand-mark" src="/assets/mahmoud-mark-transparent.svg" alt=""></a><span>© ${new Date().getFullYear()} ${esc(t.name)}</span><span>${esc(t.footer)}</span><a href="/admin" target="_blank" rel="noopener">${lang==='ar'?'لوحة الإدارة':'Admin'} ${icon('arrow')}</a></footer>
 `;
 }
@@ -202,9 +273,12 @@ function wire(){
     if(soundEnabled){
       unlockAudio();
       if(masterGain)masterGain.gain.setTargetAtTime(1,audioContext.currentTime,0.01);
+      startAmbient();
       playArrival();
-    }else if(masterGain){
-      masterGain.gain.setTargetAtTime(0,audioContext.currentTime,0.01);
+    }else{
+      stopAmbient();
+      document.querySelector('.sound-entry')?.remove();
+      if(masterGain)masterGain.gain.setTargetAtTime(0,audioContext.currentTime,0.01);
     }
     syncSoundToggle();
     soundStatus.textContent=soundEnabled?(lang==='ar'?'الصوت يعمل':'Sound on'):(lang==='ar'?'الصوت مكتوم':'Sound muted');
@@ -230,16 +304,41 @@ function wire(){
   app.querySelectorAll('.project-archive,.faq details').forEach(section=>{
     section.querySelector('summary')?.addEventListener('click',()=>playReveal(!section.open));
   });
-  app.querySelectorAll('.brief-question select').forEach(select=>{
-    select.addEventListener('change',playChoice);
-  });
+  renderBriefFlow();
+  document.querySelector('#briefFlow').onclick=event=>{
+    const choice=event.target.closest('[data-brief-choice]');
+    if(choice){
+      const selected=Number(choice.dataset.briefChoice);
+      if(briefChoices[briefStepIndex]!==selected)briefChoices.length=briefStepIndex;
+      briefChoices[briefStepIndex]=selected;
+      briefStepIndex++;
+      playChoice();
+      renderBriefFlow();
+      return;
+    }
+    if(event.target.closest('[data-brief-back]')){
+      briefStepIndex=Math.max(0,briefStepIndex-1);
+      playClose();
+      renderBriefFlow();
+    }
+  };
   document.querySelector('#brief').onsubmit=event=>{
     event.preventDefault();
+    if(briefChoices.length!==7){
+      document.querySelector('#formStatus').textContent=lang==='ar'?'أكمل الأسئلة السبعة أولًا.':'Please complete the seven questions first.';
+      document.querySelector('#briefFlow').scrollIntoView({block:'center',behavior:'smooth'});
+      return;
+    }
     const values=Object.fromEntries(new FormData(event.target).entries());
+    const questions=t.briefQuestions.map((_,index)=>{
+      const question=briefQuestion(t,index);
+      values[`answer${index+1}`]=question.options[briefChoices[index]];
+      return {q:question.q};
+    });
     document.querySelector('#formStatus').textContent=t.mailNotice||'';
-    location.href=buildMailto({email:content.email,subject:mailtoSubject(t.mailSubject||'Project enquiry',values.name,lang),lang,from:values,questions:t.briefQuestions||[]});
+    location.href=buildMailto({email:content.email,subject:mailtoSubject(t.mailSubject||'Project enquiry',values.name,lang),lang,from:values,questions});
   };
-  startMotion({lang,enabled:effectsEnabled});
+  startMotion({lang,enabled:effectsEnabled,onFloat:playFloat});
 }
 
 function openProject(index){

@@ -2,7 +2,7 @@ import {startDepthScene} from './depth-scene.js';
 
 let dispose=()=>{};
 
-export function startMotion({lang,enabled}){
+export function startMotion({lang,enabled,onFloat}){
   dispose();
   const cleaners=[];
   const on=(target,type,listener,options)=>{target.addEventListener(type,listener,options);cleaners.push(()=>target.removeEventListener(type,listener,options));};
@@ -48,6 +48,47 @@ export function startMotion({lang,enabled}){
     const observer=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){entry.target.classList.add('in-view');observer.unobserve(entry.target);}}},{threshold:.09,rootMargin:'0px 0px -30px 0px'});
     targets.forEach((node,index)=>{node.style.setProperty('--reveal-delay',`${Math.min(index%4,3)*65}ms`);node.classList.add('reveal-ready');observer.observe(node);});
     cleaners.push(()=>observer.disconnect());
+  }
+
+  if(!reduced){
+    const layer=document.createElement('div');
+    layer.className='float-layer';
+    layer.setAttribute('aria-hidden','true');
+    const spots=[[.08,.19,'ring'],[.89,.16,'diamond'],[.77,.42,'spark'],[.14,.57,'diamond'],[.9,.7,'ring'],[.34,.85,'spark'],[.61,.79,'diamond']];
+    const objects=spots.map(([x,y,shape],index)=>{
+      const node=document.createElement('span');
+      node.className=`float-object float-${shape}`;
+      node.style.left=`${x*100}%`;
+      node.style.top=`${y*100}%`;
+      node.style.setProperty('--float-delay',`${index*-.85}s`);
+      node.innerHTML='<i></i>';
+      layer.append(node);
+      return {node,x,y,near:false};
+    });
+    document.body.append(layer);
+    cleaners.push(()=>layer.remove());
+    if(fine){
+      let floatFrame=0,point;
+      const repel=event=>{
+        point={x:event.clientX,y:event.clientY};
+        if(floatFrame)return;
+        floatFrame=requestAnimationFrame(()=>{
+          floatFrame=0;
+          for(const object of objects){
+            const dx=object.x*innerWidth-point.x,dy=object.y*innerHeight-point.y;
+            const distance=Math.hypot(dx,dy),near=distance<145;
+            const force=near?Math.pow(1-distance/145,1.4)*125:0;
+            const angle=distance?Math.atan2(dy,dx):0;
+            object.node.style.setProperty('--repel-x',`${(Math.cos(angle)*force).toFixed(1)}px`);
+            object.node.style.setProperty('--repel-y',`${(Math.sin(angle)*force).toFixed(1)}px`);
+            if(near&&!object.near)onFloat?.();
+            object.near=near;
+          }
+        });
+      };
+      on(window,'pointermove',repel,{passive:true});
+      cleaners.push(()=>cancelAnimationFrame(floatFrame));
+    }
   }
 
   if(fine&&!reduced){
@@ -105,37 +146,24 @@ export function startMotion({lang,enabled}){
     }
     let cursor=document.querySelector('.custom-cursor');
     if(!cursor){cursor=document.createElement('div');cursor.className='custom-cursor';cursor.setAttribute('aria-hidden','true');document.body.append(cursor);}
-    let aura=document.querySelector('.pointer-aura');
-    if(!aura){aura=document.createElement('div');aura.className='pointer-aura';aura.setAttribute('aria-hidden','true');document.body.append(aura);}
-    aura.classList.add('visible');
-    let pointerX=-100,pointerY=-100,pointerFrame=false,activeUnderlay=null;
-    const clearUnderlay=()=>{
-      activeUnderlay?.classList.remove('pointer-underlay');
-      activeUnderlay?.style.removeProperty('--underlay-x');
-      activeUnderlay?.style.removeProperty('--underlay-y');
-      activeUnderlay=null;
-      aura.classList.remove('behind-control');
-    };
+    let pointerX=-100,pointerY=-100,pointerFrame=false;
     const pointer=event=>{
+      if(event.pointerType==='touch')return;
       pointerX=event.clientX;pointerY=event.clientY;
-      const target=event.target.closest?.('[data-cursor],.project-card,.pill,.text-link');
-      const control=event.target.closest?.('.showreel-open,.project-card,.pill,.text-link,.effects-toggle,.sound-toggle,.lang,.mobile-nav a,header nav a,.project-archive>summary,.hero-foot a,.email,#motion,.faq summary,#brief button,.film-media,.film-window');
-      if(control!==activeUnderlay){clearUnderlay();activeUnderlay=control||null;activeUnderlay?.classList.add('pointer-underlay');}
-      if(activeUnderlay){
-        const rect=activeUnderlay.getBoundingClientRect();
-        activeUnderlay.style.setProperty('--underlay-x',`${event.clientX-rect.left}px`);
-        activeUnderlay.style.setProperty('--underlay-y',`${event.clientY-rect.top}px`);
-      }
-      aura.classList.toggle('behind-control',!!activeUnderlay);
-      cursor.classList.toggle('active',!!target&&!activeUnderlay);
-      cursor.textContent=target?.dataset.cursor||(target?.classList.contains('project-card')?(lang==='ar'?'شاهد':'VIEW'):(lang==='ar'?'افتح':'OPEN'));
-      if(!pointerFrame){pointerFrame=true;requestAnimationFrame(()=>{pointerFrame=false;cursor.style.transform=`translate3d(${pointerX-41}px,${pointerY-41}px,0)`;aura.style.transform=`translate3d(${pointerX-15}px,${pointerY-15}px,0)`;});}
+      const hidden=!!event.target.closest?.('input,textarea,select,[contenteditable="true"]');
+      const watch=!!event.target.closest?.('[data-cursor],.project-card,.film-media,.showreel-open');
+      const action=!watch&&!!event.target.closest?.('a,button,summary');
+      cursor.classList.toggle('active',!hidden);
+      cursor.classList.toggle('watch',watch);
+      cursor.classList.toggle('on-control',action);
+      cursor.textContent=watch?(lang==='ar'?'شاهد':'WATCH'):(action?(lang==='ar'?'اضغط':'CLICK'):'');
+      if(!pointerFrame){pointerFrame=true;requestAnimationFrame(()=>{pointerFrame=false;cursor.style.transform=`translate3d(${pointerX}px,${pointerY}px,0) translate(-50%,-50%)`;});}
     };
     on(document,'pointermove',pointer,{passive:true});
     on(document,'pointerdown',()=>cursor.classList.add('pressed'));
     on(document,'pointerup',()=>cursor.classList.remove('pressed'));
-    on(document,'pointerleave',()=>{cursor.classList.remove('active');clearUnderlay();});
-    cleaners.push(()=>{document.body.classList.remove('has-custom-pointer');cursor.classList.remove('active');aura.classList.remove('visible');clearUnderlay();});
+    on(document,'pointerleave',()=>cursor.classList.remove('active'));
+    cleaners.push(()=>{document.body.classList.remove('has-custom-pointer');cursor.classList.remove('active','watch','on-control');});
   }
   dispose=()=>{cleaners.forEach(clean=>clean());};
 }

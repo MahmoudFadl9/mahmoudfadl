@@ -117,6 +117,14 @@
       {"q":"What length feels right?","options":["Under 30 seconds","30–60 seconds","1–2 minutes","I need your recommendation"]},
       {"q":"Which visual direction attracts you?","options":["Clean, modern motion graphics","Expressive 2D or character animation","Cinematic mixed media or AI visuals","Let's explore the right style together"]}
     ],
+    "briefBranches": [
+      ["What must the product explainer help people understand or do?","What result should your brand film or launch create?","What outcome matters most for these short-form videos?","What should the AI video or edit accomplish first?"],
+      ["Who most needs a clear explanation?","Whose memory should this brand story stay in?","Who should take action after watching?","Who must notice the announcement?"],
+      ["Where will those decision-makers encounter the film?","Where will your users or customers watch first?","Which channel matters most for the social audience?","Where will your team or partners use the film?"],
+      ["What materials are ready for the website version?","What do you already have for social publishing?","What assets are prepared for paid ads?","What can we build from across the different formats?"],
+      ["What length suits your approved script and assets?","How long should the story be with the brief you have?","How much of the footage should the final cut cover?","How long should we plan for the idea we're building together?"],
+      ["Which visual direction fits a fast, focused film?","What style should carry a 30–60 second story?","Which look can sustain the longer narrative?","Which style would you like me to recommend for your film?"]
+    ],
     "yourDeadline": "Target date (optional)",
     "yourBudget": "Budget range (optional)",
     "send": "Continue in email",
@@ -248,6 +256,14 @@
       {"q":"ما المواد الجاهزة لديك؟","options":["سكريبت ومواد بصرية معتمدة","موجز واتجاه مبدئي","لقطات تحتاج إلى مونتاج","مجرد فكرة — نبنيها معًا"]},
       {"q":"ما المدة المناسبة في رأيك؟","options":["أقل من 30 ثانية","30–60 ثانية","دقيقة إلى دقيقتين","أحتاج إلى اقتراحك"]},
       {"q":"ما الاتجاه البصري الأقرب إليك؟","options":["موشن جرافيك نظيف وعصري","تحريك ثنائي الأبعاد أو شخصيات","أسلوب سينمائي أو مشاهد بالذكاء الاصطناعي","نحدد الأسلوب المناسب معًا"]}
+    ],
+    "briefBranches": [
+      ["ما أهم فكرة يجب أن يشرحها فيديو المنتج؟","ما النتيجة التي تريدها من فيلم الهوية أو الإطلاق؟","ما النتيجة الأهم لهذه الفيديوهات القصيرة؟","ما أول هدف تريد تحقيقه من فيديو الذكاء الاصطناعي أو المونتاج؟"],
+      ["من الأكثر احتياجًا إلى شرح واضح؟","في ذاكرة من تريد أن تبقى قصة العلامة؟","من الذي تريد أن يتخذ إجراءً بعد المشاهدة؟","من يجب أن ينتبه لهذا الإعلان؟"],
+      ["أين سيشاهد صنّاع القرار الفيديو؟","أين سيشاهد المستخدمون أو العملاء أولًا؟","ما المنصة الأهم للوصول إلى جمهور التواصل؟","أين سيستخدم فريقك أو شركاؤك الفيديو؟"],
+      ["ما المواد الجاهزة لنسخة الموقع؟","ما المواد المتاحة للنشر على منصات التواصل؟","ما الأصول الجاهزة للإعلانات المدفوعة؟","ما الذي نملكه لإنتاج النسخ والمقاسات المختلفة؟"],
+      ["ما المدة المناسبة للسكريبت والمواد المعتمدة؟","ما المدة التي تتخيلها بناءً على الموجز الحالي؟","كم من اللقطات تريد أن يغطيه المونتاج النهائي؟","ما المدة التي نخطط لها للفكرة التي سنبنيها معًا؟"],
+      ["ما الأسلوب المناسب لفيديو سريع ومركّز؟","ما الشكل الذي يحمل قصة من 30 إلى 60 ثانية؟","ما الاتجاه البصري الذي يتحمل قصة أطول؟","أي أسلوب تريد أن أقترحه لهذا الفيديو؟"]
     ],
     "yourDeadline": "الموعد المطلوب (اختياري)",
     "yourBudget": "الميزانية التقديرية (اختياري)",

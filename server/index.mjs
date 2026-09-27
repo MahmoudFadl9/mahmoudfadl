@@ -121,6 +121,11 @@ function normalizeContent(input){
       if(!item||typeof item!=='object'||!Array.isArray(item.options)||item.options.length!==4)fail(`سؤال المشروع ${index+1} (${lang}): يجب أن تكون له 4 خيارات.`);
       return {q:text(item.q,140),options:item.options.map(option=>text(option,120))};
     });
+    if(!Array.isArray(source.briefBranches)||source.briefBranches.length!==6)fail(`تفرعات أسئلة المشروع (${lang}): العدد المطلوب 6 مراحل.`);
+    block.briefBranches=source.briefBranches.map((stage,index)=>{
+      if(!Array.isArray(stage)||stage.length!==4)fail(`تفرع السؤال ${index+2} (${lang}): يجب أن تكون له 4 صيغ.`);
+      return stage.map(question=>text(question,140));
+    });
     out[lang]=block;
   }
   if(!Array.isArray(input.projects))fail('قائمة المشاريع غير صحيحة.');
@@ -187,6 +192,7 @@ const server=http.createServer(async(req,res)=>{
       const published=await readJson(path.join(pub,'content.json'));
       if(stored)for(const lang of ['en','ar']){
         stored[lang].briefQuestions ||= published[lang].briefQuestions;
+        stored[lang].briefBranches ||= published[lang].briefBranches;
         stored[lang].briefNote ||= published[lang].briefNote;
         stored[lang].chooseOption ||= published[lang].chooseOption;
       }
