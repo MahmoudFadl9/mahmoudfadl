@@ -33,7 +33,7 @@ export function startMotion({lang,enabled}){
         if(stage){
           const box=hero.getBoundingClientRect();
           const dive=Math.max(0,Math.min(1,-box.top/Math.max(1,box.height*.85)));
-          stage.style.setProperty('--scroll-z',`${(-dive*230).toFixed(1)}px`);
+          stage.style.setProperty('--scroll-z',`${(-dive*100).toFixed(1)}px`);
           stage.style.setProperty('--scroll-y',`${(dive*42).toFixed(1)}px`);
         }
         const portrait=document.querySelector('.portrait');
@@ -134,21 +134,6 @@ export function startMotion({lang,enabled}){
     on(document,'pointerup',()=>cursor.classList.remove('pressed'));
     on(document,'pointerleave',()=>{cursor.classList.remove('active');clearUnderlay();});
     cleaners.push(()=>{document.body.classList.remove('has-custom-pointer');cursor.classList.remove('active');aura.classList.remove('visible');clearUnderlay();});
-  }
-  if(!fine&&!reduced){
-    let touchAura=document.querySelector('.touch-aura');
-    if(!touchAura){touchAura=document.createElement('div');touchAura.className='touch-aura';touchAura.setAttribute('aria-hidden','true');document.body.append(touchAura);}
-    let hideTimer;
-    const follow=event=>{
-      const point=event.touches?.[0];if(!point)return;
-      touchAura.style.transform=`translate3d(${point.clientX-34}px,${point.clientY-34}px,0)`;
-      touchAura.classList.add('visible');
-      clearTimeout(hideTimer);
-      hideTimer=setTimeout(()=>touchAura.classList.remove('visible'),700);
-    };
-    on(window,'touchstart',follow,{passive:true});on(window,'touchmove',follow,{passive:true});
-    on(window,'touchend',()=>{clearTimeout(hideTimer);hideTimer=setTimeout(()=>touchAura.classList.remove('visible'),450);},{passive:true});
-    cleaners.push(()=>{clearTimeout(hideTimer);touchAura.classList.remove('visible');});
   }
   dispose=()=>{cleaners.forEach(clean=>clean());};
 }

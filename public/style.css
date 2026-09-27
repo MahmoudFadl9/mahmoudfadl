@@ -124,7 +124,7 @@ html.effects-on .site-enter .glass-badge{animation:entry-badge .95s cubic-bezier
 @keyframes entry-rise{from{opacity:0;transform:translate3d(0,45px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
 @keyframes entry-glow{from{opacity:0;filter:blur(12px);letter-spacing:.03em}to{opacity:1;filter:blur(0);letter-spacing:inherit}}
 @keyframes entry-film{from{opacity:0;transform:translate3d(0,100px,-120px) rotate(-13deg) rotateX(42deg) rotateY(-22deg) scale(.74)}to{opacity:1;transform:translate3d(var(--film-x,0px),calc(var(--film-y,0px) + var(--scroll-y,0px)),calc(var(--pointer-z,0px) + var(--scroll-z,0px))) rotate(-5deg) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg)) scale(1)}}
-@keyframes entry-badge{from{opacity:0;transform:translate3d(-35px,38px,-45px) rotate(-12deg) scale(.7)}to{opacity:1;transform:translate3d(var(--badge-x,0px),var(--badge-y,0px),48px) rotate(3deg) scale(1)}}
+@keyframes entry-badge{from{opacity:0;transform:translate3d(-35px,38px,-45px) rotate(-12deg) scale(.7)}to{opacity:1;transform:translate3d(var(--badge-x,0px),var(--badge-y,0px),calc(48px + var(--pointer-z,0px) + var(--scroll-z,0px))) rotate(3deg) scale(1)}}
 @media(max-width:700px){.pointer-aura{display:none}.depth-scene{opacity:.84}}
 
 /* Three small editorial previews; the growing archive stays one click away. */
@@ -162,25 +162,34 @@ html.effects-on .site-enter .glass-badge{animation:entry-badge .95s cubic-bezier
 .hero-stage::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:50%;background:radial-gradient(ellipse at center,#8debd33c 0%,#3a8e8b22 30%,transparent 69%);transform:translate3d(var(--depth-x,0px),var(--depth-y,0px),-150px) scale(1.24);transition:transform .34s ease-out}
 .hero-stage .film-window{transform:translate3d(var(--film-x,0px),calc(var(--film-y,0px) + var(--scroll-y,0px)),calc(var(--pointer-z,0px) + var(--scroll-z,0px))) rotate(-5deg) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg));transition:transform .24s cubic-bezier(.2,.7,.2,1),box-shadow .3s ease;box-shadow:0 38px 90px #000b,0 0 0 1px #bcffe726;transform-origin:center center}
 .hero-stage:hover .film-window{box-shadow:0 58px 115px #000c,0 0 48px #87e9d42c}
-.hero-stage .glass-badge{transform:translate3d(var(--badge-x,0px),var(--badge-y,0px),48px) rotate(3deg);transition:transform .28s ease-out}
+.hero-stage .glass-badge{transform:translate3d(var(--badge-x,0px),var(--badge-y,0px),calc(48px + var(--pointer-z,0px) + var(--scroll-z,0px))) rotate(3deg);transition:transform .28s ease-out}
 .hero-stage .orbits{opacity:.34;transform:translate3d(var(--depth-back-x,0px),var(--depth-back-y,0px),-90px);transition:transform .36s ease-out}
 .orbit{border-color:#a8dac516}
 @media(pointer:coarse){.hero-stage .film-window{transition:transform .3s ease-out}.hero-stage .orbits{opacity:.26}}
 
 /* Supplied identity mark; short editorial labels use caps, reading copy uses sentence case. */
-.brand-mark{display:block;width:58px;height:58px;object-fit:contain;flex:none;border-radius:6px}
-footer .brand-mark{width:44px;height:44px}
+.brand-mark{display:block;width:70px;height:42px;object-fit:contain;flex:none}
+footer .brand-mark{width:58px;height:34px}
 [lang=en] .eyebrow,[lang=en] .project-type,[lang=en] .stage-note,[lang=en] .service-grid small,[lang=en] .brand small{text-transform:uppercase}
 [lang=en] nav a,[lang=en] .pill,[lang=en] .text-link,[lang=en] .project-caption h3,[lang=en] .section h2{text-transform:none}
-@media(max-width:700px){header .brand-mark{width:49px;height:49px}}
-@media(max-width:420px){header .brand-mark{width:43px;height:43px}}
+@media(max-width:700px){header .brand-mark{width:59px;height:36px}}
+@media(max-width:420px){header .brand-mark{width:52px;height:32px}}
 
-/* Fast compositor-only film movement and a touch follower for portrait phones. */
+/* Fast compositor-only film movement. */
 .hero-stage .film-window{transition:transform .11s linear;box-shadow:0 27px 58px #000a,0 0 0 1px #bcffe726}
 .hero-stage:hover .film-window{box-shadow:0 27px 58px #000a,0 0 0 1px #bcffe726}
 .hero-stage .glass-badge{backdrop-filter:none;background:#263c36e8}
 .hero-stage .orbits{transition:transform .17s linear}
-.touch-aura{display:none;position:fixed;top:0;left:0;z-index:75;width:68px;height:68px;border:1px solid #b7e9d69c;border-radius:50%;pointer-events:none;opacity:0;transform:translate3d(-100px,-100px,0);transition:transform .08s linear,opacity .32s ease;background:radial-gradient(circle,#b7e9d650 0%,#b7e9d611 45%,transparent 72%);box-shadow:0 0 25px #b7e9d63b}
-.touch-aura.visible{opacity:.85}
-html.effects-off .touch-aura{display:none!important}
-@media(pointer:coarse){.touch-aura{display:block}.hero-stage .film-window{transition:transform .16s linear}}
+@media(pointer:coarse){.hero-stage .film-window{transition:transform .16s linear}}
+.film-media{position:relative;aspect-ratio:16/10;overflow:hidden;background:#183229}
+.hero-stage{padding-bottom:145px}
+.hero-stage .glass-badge{bottom:12px;inset-inline-start:0}
+.film-media .film-poster,.film-media video{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover}
+.film-media video{aspect-ratio:auto;opacity:0;transition:opacity .18s ease}
+.film-media.is-playing video{opacity:1}
+.showreel-open{position:absolute;z-index:3;top:50%;left:50%;transform:translate(-50%,-50%);display:inline-flex;align-items:center;justify-content:center;gap:9px;white-space:nowrap;padding:13px 18px;border:1px solid #e7fff9ac;border-radius:999px;background:#10241de0;color:#f3fff9;font-size:12px;box-shadow:0 12px 30px #0008;transition:background .18s ease,scale .18s ease}
+.showreel-open:hover{background:#275545;scale:1.05}
+.showreel-open .icon{width:17px;height:17px}
+#showreelDialog{max-width:1100px;padding:16px;background:#101915}
+#showreelDialog video{display:block;width:100%;max-height:78vh;aspect-ratio:16/9;object-fit:contain}
+#showreelDialog .close{margin:0 0 12px 12px}

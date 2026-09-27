@@ -31,6 +31,20 @@ const securityHeaders={
   'Content-Security-Policy':"default-src 'self' blob:; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'; object-src 'none'"
 };
 
+function siteOrigin(req){
+  if(process.env.PUBLIC_SITE_URL){
+    try{
+      const configured=new URL(process.env.PUBLIC_SITE_URL);
+      if(['http:','https:'].includes(configured.protocol))return configured.origin;
+    }catch{}
+  }
+  const requestedHost=req.headers.host||'';
+  const safeHost=/^[a-z\d.-]+(?::\d{1,5})?$/i.test(requestedHost)?requestedHost:`127.0.0.1:${port}`;
+  const forwardedProto=String(req.headers['x-forwarded-proto']||'').split(',')[0].trim();
+  const protocol=process.env.NODE_ENV==='production'&&forwardedProto==='https'?'https':'http';
+  return `${protocol}://${safeHost}`;
+}
+
 async function readJson(file){return JSON.parse(await readFile(file,'utf8'));}
 async function jsonFile(name,fallback){try{return await readJson(path.join(data,name));}catch(e){if(e.code==='ENOENT')return fallback;if(e instanceof SyntaxError)throw new ContentProblem(`${name}: الملف غير صالح بصيغة JSON. راجع النسخ الاحتياطية في data/backups.`);throw e;}}
 async function saveJson(name,value){const file=path.join(data,name);await writeFile(`${file}.tmp`,JSON.stringify(value,null,2));await rename(`${file}.tmp`,file);}
@@ -214,6 +228,11 @@ const server=http.createServer(async(req,res)=>{
     const ext=path.extname(file).toLowerCase();
     res.setHeader('Content-Type',mime[ext]||'application/octet-stream');
     res.setHeader('Cache-Control',longCache.has(ext)?'public, max-age=604800':'no-cache');
+    if(target==='/index.html'){
+      const html=(await readFile(file,'utf8')).replaceAll('__SITE_ORIGIN__',siteOrigin(req));
+      res.writeHead(200,{'Content-Length':Buffer.byteLength(html)});
+      return res.end(method==='HEAD'?'':html);
+    }
     return sendFile(req,res,file,info.size,info.mtime);
   }catch(error){
     if(error instanceof ContentProblem)return reply(res,400,{error:error.message});
