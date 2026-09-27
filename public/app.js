@@ -12,7 +12,7 @@ const soundStatus=document.querySelector('#soundStatus');
 const systemReducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const savedEffects=localStorage.getItem('portfolio-effects');
 let effectsEnabled=savedEffects==='on'||(savedEffects!=='off'&&!systemReducedMotion);
-let soundEnabled=localStorage.getItem('portfolio-sound')==='on';
+let soundEnabled=localStorage.getItem('portfolio-sound')!=='off';
 let audioUnlocked=false,audioContext,masterGain,lastHoverAt=0;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeUrl=value=>{try{const url=new URL(value,location.origin);return ['http:','https:'].includes(url.protocol)?esc(value):'#';}catch{return '#';}};
@@ -76,12 +76,36 @@ function playSwell(){
   tone({from:220,to:390,duration:0.48,peak:0.024,attack:0.13});
   tone({from:330,to:590,duration:0.42,peak:0.013,attack:0.15,delay:0.05});
 }
-function unlockAudio(){audioUnlocked=true;if(soundEnabled)audio();}
+function playArrival(){
+  tone({from:310,to:470,duration:0.18,peak:0.014,attack:0.055});
+  tone({from:465,to:705,duration:0.2,peak:0.008,attack:0.065,delay:0.045});
+}
+function playNavigate(){
+  tone({from:480,to:740,duration:0.085,peak:0.015,attack:0.009});
+  tone({from:720,to:980,duration:0.07,peak:0.005,attack:0.012,delay:0.035});
+}
+function playReveal(open){
+  tone({from:open?290:520,to:open?490:280,duration:0.19,peak:0.019,attack:0.035});
+  tone({from:open?440:660,to:open?660:390,duration:0.15,peak:0.006,attack:0.035,delay:0.035});
+}
+function playTransport(playing){
+  tone({from:playing?360:550,to:playing?630:320,duration:0.13,peak:0.017,attack:0.018});
+}
+function playChoice(){
+  tone({from:430,to:575,duration:0.09,peak:0.014,attack:0.008});
+  tone({from:645,to:770,duration:0.075,peak:0.004,attack:0.012,delay:0.018});
+}
+function playClose(){tone({from:410,to:230,duration:0.11,peak:0.013,attack:0.012});}
+function unlockAudio(){
+  if(audioUnlocked)return;
+  audioUnlocked=true;
+  if(soundEnabled){audio();playArrival();}
+}
 document.addEventListener('pointerdown',unlockAudio,{once:true,capture:true});
 document.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' ')unlockAudio();},{capture:true});
 app.addEventListener('pointerover',event=>{
   if(event.pointerType!=='mouse'&&event.pointerType!=='pen')return;
-  const control=event.target.closest('header nav a,header .pill,.mobile-nav a,.hero .actions a');
+  const control=event.target.closest('header nav a,header .pill,.mobile-nav a,.hero .actions a,.showreel-open,.project-archive>summary,.faq summary');
   if(control&&!control.contains(event.relatedTarget))playHover();
 });
 
@@ -115,6 +139,10 @@ function projectCard(project,index,t){
   return `<button class="project-card" type="button" data-project="${index}" data-cursor="${lang==='ar'?'شاهد':'VIEW'}" aria-label="${esc(project[lang].title)}"><div class="project-image"><img src="${safeUrl(project.image)}" alt="${esc(project[lang].subtitle||project.client)}" loading="lazy" decoding="async"><span class="client">${esc(project.client)}</span><span class="watch">${icon('play')} ${esc(t.play)}</span><span class="circle-arrow" aria-hidden="true">${icon('arrow')}</span></div><div class="project-caption"><div><h3>${esc(project[lang].title)}</h3><p>${esc(project[lang].subtitle)}</p></div><span class="project-number">${String(index+1).padStart(2,'0')}</span></div><span class="project-type">${esc(project.type)}</span></button>`;
 }
 
+function briefQuestions(t){
+  return (t.briefQuestions||[]).map((item,index)=>`<label class="brief-question"><span><b>${String(index+1).padStart(2,'0')}</b> ${esc(item.q)}</span><select name="answer${index+1}" required><option value="" selected disabled>${esc(t.chooseOption||'Choose one option')}</option>${item.options.map(option=>`<option value="${esc(option)}">${esc(option)}</option>`).join('')}</select></label>`).join('');
+}
+
 function render(){
   const t=content[lang],d=decorations(t);
   const visibleProjects=content.projects.map((project,index)=>({project,index})).filter(({project})=>project.visible!==false);
@@ -145,7 +173,7 @@ function render(){
 <section class="section process"><p class="eyebrow">04 / ${esc(d.processLabel)}</p><h2>${esc(t.processTitle)}</h2><div class="steps">${t.steps.map((step,index)=>`<article><span>0${index+1}</span><h3>${esc(step.title)}</h3><p>${esc(step.desc)}</p></article>`).join('')}</div></section>
 <section class="section faq"><h2>${esc(t.faqTitle)}</h2><div>${t.faqs.map(item=>`<details><summary>${esc(item.q)}<span aria-hidden="true">+</span></summary><p>${esc(item.a)}</p></details>`).join('')}</div></section>
 <section id="contact" class="section contact"><div><p class="eyebrow"><i></i> ${esc(t.cta)}</p><h2>${esc(t.contactTitle)}</h2><p>${esc(t.contactIntro)}</p><a class="email" href="mailto:${esc(content.email)}">${icon('mail')} ${esc(content.email)} ${icon('arrow')}</a><div class="actions"><a class="text-link" href="https://wa.me/${esc(String(content.phone).replace(/\D/g,''))}" target="_blank" rel="noopener">${icon('message')} ${esc(t.whatsapp)} ${icon('arrow')}</a><a class="text-link" href="${safeUrl(content.calendar)}" target="_blank" rel="noopener">${icon('calendar')} ${esc(t.book)} ${icon('arrow')}</a></div></div>
-<form id="brief"><div class="form-row"><label>${esc(t.yourName)}<input name="name" autocomplete="name" required maxlength="100"></label><label>${esc(t.yourEmail)}<input name="email" type="email" autocomplete="email" required maxlength="200"></label></div><label>${esc(t.yourBrief)}<textarea name="brief" placeholder="${esc(t.briefHint)}" required rows="4" maxlength="3000"></textarea></label><div class="form-row"><label>${esc(t.yourDeadline)}<input name="deadline" type="date"></label><label>${esc(t.yourBudget)}<input name="budget" type="text" maxlength="60" inputmode="text"></label></div><button class="pill" type="submit">${esc(t.send)} ${icon('arrow')}</button><p id="formStatus" class="form-status" role="status" aria-live="polite"></p><small>${esc(t.formNote)}</small></form></section>
+<form id="brief"><div class="form-row"><label>${esc(t.yourName)}<input name="name" autocomplete="name" required maxlength="100"></label><label>${esc(t.yourEmail)}<input name="email" type="email" autocomplete="email" required maxlength="200"></label></div><fieldset class="brief-questions"><legend>${esc(t.yourBrief)}</legend><div class="brief-grid">${briefQuestions(t)}</div></fieldset><label>${esc(t.briefNote||'Anything else I should know? (optional)')}<textarea name="brief" placeholder="${esc(t.briefHint)}" rows="3" maxlength="1200"></textarea></label><div class="form-row"><label>${esc(t.yourDeadline)}<input name="deadline" type="date"></label><label>${esc(t.yourBudget)}<input name="budget" type="text" maxlength="60" inputmode="text"></label></div><button class="pill" type="submit">${esc(t.send)} ${icon('arrow')}</button><p id="formStatus" class="form-status" role="status" aria-live="polite"></p><small>${esc(t.formNote)}</small></form></section>
 </main><footer><a class="brand" href="#" aria-label="${esc(t.name)}"><img class="brand-mark" src="/assets/mahmoud-mark-transparent.svg" alt=""></a><span>© ${new Date().getFullYear()} ${esc(t.name)}</span><span>${esc(t.footer)}</span><a href="/admin" target="_blank" rel="noopener">${lang==='ar'?'لوحة الإدارة':'Admin'} ${icon('arrow')}</a></footer>
 `;
 }
@@ -154,12 +182,14 @@ function wire(){
   const t=content[lang];
   syncSoundToggle();
   document.querySelector('.lang').onclick=()=>{
+    playNavigate();
     lang=lang==='en'?'ar':'en';
     localStorage.setItem('portfolio-language',lang);
     const address=new URL(location.href);address.searchParams.set('lang',lang);history.replaceState(null,'',address);
     render();wire();
   };
   document.querySelector('.effects-toggle').onclick=()=>{
+    playTransport(!effectsEnabled);
     effectsEnabled=!effectsEnabled;
     localStorage.setItem('portfolio-effects',effectsEnabled?'on':'off');
     render();wire();
@@ -172,7 +202,7 @@ function wire(){
     if(soundEnabled){
       unlockAudio();
       if(masterGain)masterGain.gain.setTargetAtTime(1,audioContext.currentTime,0.01);
-      playHover();
+      playArrival();
     }else if(masterGain){
       masterGain.gain.setTargetAtTime(0,audioContext.currentTime,0.01);
     }
@@ -187,7 +217,7 @@ function wire(){
     filmMedia.classList.toggle('is-playing',!hero.paused&&hero.readyState>=2);
   };
   hero.onplaying=sync;hero.onpause=sync;hero.onwaiting=()=>filmMedia.classList.remove('is-playing');hero.onerror=()=>filmMedia.classList.remove('is-playing');sync();
-  motion.onclick=()=>{hero.paused?hero.play().catch(sync):hero.pause();};
+  motion.onclick=()=>{playTransport(hero.paused);hero.paused?hero.play().catch(sync):hero.pause();};
   document.querySelector('.showreel-open').onclick=()=>{
     playSwell();
     showreelDialog.setAttribute('aria-label',lang==='ar'?'الشو ريل':'Showreel');
@@ -196,11 +226,18 @@ function wire(){
     document.body.classList.add('modal-open');
     showreelPlayer.play().catch(()=>{});
   };
+  app.querySelectorAll('a[href^="#"]').forEach(link=>{link.addEventListener('click',()=>playNavigate());});
+  app.querySelectorAll('.project-archive,.faq details').forEach(section=>{
+    section.querySelector('summary')?.addEventListener('click',()=>playReveal(!section.open));
+  });
+  app.querySelectorAll('.brief-question select').forEach(select=>{
+    select.addEventListener('change',playChoice);
+  });
   document.querySelector('#brief').onsubmit=event=>{
     event.preventDefault();
     const values=Object.fromEntries(new FormData(event.target).entries());
     document.querySelector('#formStatus').textContent=t.mailNotice||'';
-    location.href=buildMailto({email:content.email,subject:mailtoSubject(t.mailSubject||'Project enquiry',values.name,lang),lang,from:values});
+    location.href=buildMailto({email:content.email,subject:mailtoSubject(t.mailSubject||'Project enquiry',values.name,lang),lang,from:values,questions:t.briefQuestions||[]});
   };
   startMotion({lang,enabled:effectsEnabled});
 }
@@ -213,10 +250,10 @@ function openProject(index){
   document.body.classList.add('modal-open');
 }
 
-closeButton.onclick=()=>dialog.close();
+closeButton.onclick=()=>{playClose();dialog.close();};
 dialog.onclick=event=>{if(event.target===dialog)dialog.close();};
 dialog.onclose=()=>{detail.querySelector('video')?.pause();document.body.classList.remove('modal-open');};
-showreelDialog.querySelector('.close').onclick=()=>{showreelPlayer.pause();showreelDialog.close();};
+showreelDialog.querySelector('.close').onclick=()=>{playClose();showreelPlayer.pause();showreelDialog.close();};
 showreelDialog.onclick=event=>{if(event.target===showreelDialog){showreelPlayer.pause();showreelDialog.close();}};
 showreelDialog.onclose=()=>{showreelPlayer.pause();showreelPlayer.currentTime=0;document.body.classList.remove('modal-open');};
 

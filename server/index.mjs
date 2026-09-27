@@ -83,7 +83,7 @@ const matchFile=(url,pattern,message)=>{if(!url)return '';const clean=url.split(
 const videoFile=value=>matchFile(asset(value),/\.(mp4|webm|m4v)$/i,'رابط الفيديو لا يبدو ملفًا مباشرًا (mp4 أو webm)');
 const imageFile=value=>matchFile(asset(value),/\.(webp|jpg|jpeg|png|avif)$/i,'رابط الغلاف لا يبدو صورة (webp أو jpg أو png)');
 
-const textLimits={name:80,navWork:40,navServices:40,navAbout:40,cta:60,eyebrow:140,heroTop:140,heroBottom:140,intro:700,viewWork:60,book:60,since:60,remote:90,selected:220,workIntro:220,play:60,expertise:220,tagline:60,framesLabel:90,filmCaption:90,filmCaptionText:90,badgeTitle:60,badgeSub:60,stageNote:140,aboutTitle:220,about:2400,aboutSmall:220,processLabel:60,processTitle:220,faqTitle:200,contactTitle:220,contactIntro:700,yourName:60,yourEmail:60,yourBrief:60,yourDeadline:60,yourBudget:60,briefHint:240,send:60,whatsapp:60,formNote:450,mailNotice:300,mailSubject:90,footer:220,roleLabel:60,storyLabel:60,external:60,allWork:60,pause:60,resume:60,skip:60,close:60};
+const textLimits={name:80,navWork:40,navServices:40,navAbout:40,cta:60,eyebrow:140,heroTop:140,heroBottom:140,intro:700,viewWork:60,book:60,since:60,remote:90,selected:220,workIntro:220,play:60,expertise:220,tagline:60,framesLabel:90,filmCaption:90,filmCaptionText:90,badgeTitle:60,badgeSub:60,stageNote:140,aboutTitle:220,about:2400,aboutSmall:220,processLabel:60,processTitle:220,faqTitle:200,contactTitle:220,contactIntro:700,yourName:60,yourEmail:60,yourBrief:60,yourDeadline:60,yourBudget:60,briefHint:240,briefNote:100,chooseOption:80,send:60,whatsapp:60,formNote:450,mailNotice:300,mailSubject:90,footer:220,roleLabel:60,storyLabel:60,external:60,allWork:60,pause:60,resume:60,skip:60,close:60};
 const serviceFields={title:80,desc:600,tag:90,price:120},stepFields={title:80,desc:320},faqFields={q:170,a:750},projectText={title:140,subtitle:140,role:260,story:950};
 
 function listOf(input,fields,label,{min=0,max=12}={}){
@@ -116,6 +116,11 @@ function normalizeContent(input){
     block.services=listOf(source.services,serviceFields,`خدمات (${lang})`,{min:1,max:6});
     block.steps=listOf(source.steps,stepFields,`خطوات العمل (${lang})`,{min:1,max:8});
     block.faqs=listOf(source.faqs,faqFields,`الأسئلة الشائعة (${lang})`,{max:14});
+    if(!Array.isArray(source.briefQuestions)||source.briefQuestions.length!==7)fail(`أسئلة المشروع (${lang}): العدد المطلوب 7.`);
+    block.briefQuestions=source.briefQuestions.map((item,index)=>{
+      if(!item||typeof item!=='object'||!Array.isArray(item.options)||item.options.length!==4)fail(`سؤال المشروع ${index+1} (${lang}): يجب أن تكون له 4 خيارات.`);
+      return {q:text(item.q,140),options:item.options.map(option=>text(option,120))};
+    });
     out[lang]=block;
   }
   if(!Array.isArray(input.projects))fail('قائمة المشاريع غير صحيحة.');
@@ -179,7 +184,13 @@ const server=http.createServer(async(req,res)=>{
     if(pathname==='/api/content'&&method==='GET'){
       let stored=null;
       try{stored=await jsonFile('content.json',null);}catch(error){console.warn(`[content] ${error.message}`);}
-      return reply(res,200,stored||await readJson(path.join(pub,'content.json')));
+      const published=await readJson(path.join(pub,'content.json'));
+      if(stored)for(const lang of ['en','ar']){
+        stored[lang].briefQuestions ||= published[lang].briefQuestions;
+        stored[lang].briefNote ||= published[lang].briefNote;
+        stored[lang].chooseOption ||= published[lang].chooseOption;
+      }
+      return reply(res,200,stored||published);
     }
     if((pathname==='/api/setup'||pathname==='/api/login')&&method==='POST'){
       const payload=await readBody(req);

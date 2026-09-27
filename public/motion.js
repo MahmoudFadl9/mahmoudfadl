@@ -111,13 +111,15 @@ export function startMotion({lang,enabled}){
     let pointerX=-100,pointerY=-100,pointerFrame=false,activeUnderlay=null;
     const clearUnderlay=()=>{
       activeUnderlay?.classList.remove('pointer-underlay');
+      activeUnderlay?.style.removeProperty('--underlay-x');
+      activeUnderlay?.style.removeProperty('--underlay-y');
       activeUnderlay=null;
       aura.classList.remove('behind-control');
     };
     const pointer=event=>{
       pointerX=event.clientX;pointerY=event.clientY;
       const target=event.target.closest?.('[data-cursor],.project-card,.pill,.text-link');
-      const control=event.target.closest?.('.pill,.text-link,.effects-toggle,.lang,.mobile-nav a,header nav a,.project-archive>summary,.hero-foot a,.email,#motion,.faq summary');
+      const control=event.target.closest?.('.showreel-open,.project-card,.pill,.text-link,.effects-toggle,.sound-toggle,.lang,.mobile-nav a,header nav a,.project-archive>summary,.hero-foot a,.email,#motion,.faq summary,#brief button,.film-media,.film-window');
       if(control!==activeUnderlay){clearUnderlay();activeUnderlay=control||null;activeUnderlay?.classList.add('pointer-underlay');}
       if(activeUnderlay){
         const rect=activeUnderlay.getBoundingClientRect();

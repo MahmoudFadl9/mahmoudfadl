@@ -11,16 +11,21 @@ const LABELS={
 
 const clean=(value,max=600)=>String(value??'').replace(/\r?\n/g,' ').trim().slice(0,max);
 
-export function buildMailto({email='',subject='',lang='en',from={}}={}){
+export function buildMailto({email='',subject='',lang='en',from={},questions=[]}={}){
   const labels=LABELS[lang]||LABELS.en;
   const name=clean(from.name,80),reply=clean(from.email,120),brief=String(from.brief??'').trim().slice(0,1200);
   const deadline=clean(from.deadline,40),budget=clean(from.budget,60);
   const lines=[labels.intro,''];
-  if(brief)lines.push(`${labels.brief}:`,brief,'');
   if(name)lines.push(`${labels.name}: ${name}`);
   if(reply)lines.push(`${labels.email}: ${reply}`);
+  if(name||reply)lines.push('');
+  questions.forEach((question,index)=>{
+    const answer=clean(from[`answer${index+1}`],120);
+    if(answer)lines.push(`${index+1}. ${clean(question.q,140)}: ${answer}`);
+  });
   if(deadline)lines.push(`${labels.deadline}: ${deadline}`);
   if(budget)lines.push(`${labels.budget}: ${budget}`);
+  if(brief)lines.push('',`${labels.brief}:`,brief);
   let body=lines.join('\r\n');
   if(body.length>MAILTO_BODY_LIMIT)body=body.slice(0,MAILTO_BODY_LIMIT).trimEnd();
   const query=[subject?`subject=${encodeURIComponent(clean(subject,120))}`:'',`body=${encodeURIComponent(body)}`].filter(Boolean).join('&');
