@@ -1,0 +1,15 @@
+{
+  "name": "mahmoud-fadl-portfolio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Portfolio site for Mahmoud Fadl — motion design, AI video and visual storytelling (EN/AR).",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server/index.mjs",
+    "test": "node --test tests/server.test.mjs",
+    "test:browser": "node tests/browser/run.mjs"
+  }
+}
