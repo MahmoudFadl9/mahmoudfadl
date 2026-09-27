@@ -193,3 +193,13 @@ footer .brand-mark{width:58px;height:34px}
 #showreelDialog{max-width:1100px;padding:16px;background:#101915}
 #showreelDialog video{display:block;width:100%;max-height:78vh;aspect-ratio:16/9;object-fit:contain}
 #showreelDialog .close{margin:0 0 12px 12px}
+
+/* Opt-in Web Audio controls stay small and readable beside the language switch. */
+.sound-toggle{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;padding:0;border:1px solid #b7e9d677;border-radius:50%;background:#b7e9d619;color:var(--accent);transition:background .18s ease,border-color .18s ease,transform .18s ease}
+.sound-toggle:hover{background:#b7e9d62b;border-color:var(--accent);transform:translateY(-2px)}
+.sound-toggle[aria-pressed="false"]{color:#a9b8ae;background:transparent;border-color:#ffffff43}
+.sound-toggle svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.sound-toggle:disabled{opacity:.45;cursor:not-allowed}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:700px){.sound-toggle{flex-basis:34px;width:34px;height:34px}}
+@media(max-width:420px){header{gap:8px}.header-actions{gap:5px}.sound-toggle{flex-basis:30px;width:30px;height:30px}.header-actions .pill.small{padding:8px 9px;gap:6px}.header-actions .lang{font-size:12px}}

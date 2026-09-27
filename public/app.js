@@ -8,11 +8,82 @@ const detail=document.querySelector('#detail');
 const closeButton=dialog.querySelector('.close');
 const showreelDialog=document.querySelector('#showreelDialog');
 const showreelPlayer=showreelDialog.querySelector('video');
+const soundStatus=document.querySelector('#soundStatus');
 const systemReducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const savedEffects=localStorage.getItem('portfolio-effects');
 let effectsEnabled=savedEffects==='on'||(savedEffects!=='off'&&!systemReducedMotion);
+let soundEnabled=localStorage.getItem('portfolio-sound')==='on';
+let audioUnlocked=false,audioContext,masterGain,lastHoverAt=0;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeUrl=value=>{try{const url=new URL(value,location.origin);return ['http:','https:'].includes(url.protocol)?esc(value):'#';}catch{return '#';}};
+
+const soundIcon=()=>soundEnabled
+  ?'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6a8 8 0 0 1 0 12"/></svg>'
+  :'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="m17 9 5 6m0-6-5 6"/></svg>';
+const soundLabel=()=>soundEnabled?(lang==='ar'?'إيقاف الصوت':'Turn sound off'):(lang==='ar'?'تشغيل الصوت':'Turn sound on');
+function syncSoundToggle(){
+  const button=document.querySelector('.sound-toggle');
+  if(!button)return;
+  button.disabled=!(window.AudioContext||window.webkitAudioContext);
+  button.innerHTML=soundIcon();
+  button.setAttribute('aria-pressed',String(soundEnabled));
+  const label=button.disabled?(lang==='ar'?'الصوت غير مدعوم':'Sound unavailable'):soundLabel();
+  button.setAttribute('aria-label',label);
+  button.title=label;
+}
+function audio(){
+  if(!soundEnabled||!audioUnlocked)return null;
+  const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+  if(!AudioContextClass)return null;
+  try{
+    if(!audioContext){
+      audioContext=new AudioContextClass();
+      masterGain=audioContext.createGain();
+      masterGain.gain.value=1;
+      masterGain.connect(audioContext.destination);
+    }
+    if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
+    return audioContext;
+  }catch{return null;}
+}
+function tone({from,to,duration,peak,attack=0.006,delay=0,type='sine'}){
+  const context=audio();
+  if(!context)return;
+  const now=context.currentTime+delay;
+  const oscillator=context.createOscillator(),gain=context.createGain();
+  oscillator.type=type;
+  oscillator.frequency.setValueAtTime(from,now);
+  oscillator.frequency.exponentialRampToValueAtTime(to,now+duration);
+  gain.gain.setValueAtTime(0.0001,now);
+  gain.gain.exponentialRampToValueAtTime(peak,now+attack);
+  gain.gain.exponentialRampToValueAtTime(0.0001,now+duration);
+  oscillator.connect(gain).connect(masterGain);
+  oscillator.start(now);
+  oscillator.stop(now+duration+0.005);
+}
+function playHover(){
+  if(!soundEnabled)return;
+  const now=performance.now();
+  if(now-lastHoverAt<75)return;
+  lastHoverAt=now;
+  tone({from:760,to:620,duration:0.035,peak:0.009,attack:0.004});
+}
+function playTap(){
+  tone({from:210,to:92,duration:0.105,peak:0.055,attack:0.005});
+  tone({from:660,to:330,duration:0.045,peak:0.012,attack:0.003});
+}
+function playSwell(){
+  tone({from:220,to:390,duration:0.48,peak:0.024,attack:0.13});
+  tone({from:330,to:590,duration:0.42,peak:0.013,attack:0.15,delay:0.05});
+}
+function unlockAudio(){audioUnlocked=true;if(soundEnabled)audio();}
+document.addEventListener('pointerdown',unlockAudio,{once:true,capture:true});
+document.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' ')unlockAudio();},{capture:true});
+app.addEventListener('pointerover',event=>{
+  if(event.pointerType!=='mouse'&&event.pointerType!=='pen')return;
+  const control=event.target.closest('header nav a,header .pill,.mobile-nav a,.hero .actions a');
+  if(control&&!control.contains(event.relatedTarget))playHover();
+});
 
 let content,lang=initialLang();
 
@@ -58,7 +129,7 @@ function render(){
   const mobileNav=`${headerNav}<a href="#contact">${esc(t.cta)}</a>`;
   app.innerHTML=`
 <a class="skip" href="#work">${esc(d.skip)}</a>
-<header><a class="brand" href="#"><img class="brand-mark" src="/assets/mahmoud-mark-transparent.svg" alt=""><span>${esc(t.name)}<small>${esc(d.tagline)}</small></span></a><nav aria-label="${esc(t.navWork)}">${headerNav}</nav><div class="header-actions"><button class="effects-toggle" type="button" aria-pressed="${effectsEnabled}" aria-label="${effectsEnabled?(lang==='ar'?'إيقاف التأثيرات':'Turn effects off'):(lang==='ar'?'تشغيل التأثيرات':'Turn effects on')}" title="${effectsEnabled?(lang==='ar'?'إيقاف التأثيرات':'Turn effects off'):(lang==='ar'?'تشغيل التأثيرات':'Turn effects on')}">${icon('spark')} <span>${effectsEnabled?(lang==='ar'?'الحركة تعمل':'Motion on'):(lang==='ar'?'شغّل الحركة':'Motion off')}</span></button><button class="lang" type="button" aria-label="${lang==='en'?'التبديل إلى العربية':'Switch to English'}">${lang==='en'?'العربية':'EN'}</button><a class="pill small" href="#contact">${esc(t.cta)} ${icon('arrow')}</a></div></header>
+<header><a class="brand" href="#"><img class="brand-mark" src="/assets/mahmoud-mark-transparent.svg" alt=""><span>${esc(t.name)}<small>${esc(d.tagline)}</small></span></a><nav aria-label="${esc(t.navWork)}">${headerNav}</nav><div class="header-actions"><button class="effects-toggle" type="button" aria-pressed="${effectsEnabled}" aria-label="${effectsEnabled?(lang==='ar'?'إيقاف التأثيرات':'Turn effects off'):(lang==='ar'?'تشغيل التأثيرات':'Turn effects on')}" title="${effectsEnabled?(lang==='ar'?'إيقاف التأثيرات':'Turn effects off'):(lang==='ar'?'تشغيل التأثيرات':'Turn effects on')}">${icon('spark')} <span>${effectsEnabled?(lang==='ar'?'الحركة تعمل':'Motion on'):(lang==='ar'?'شغّل الحركة':'Motion off')}</span></button><button class="sound-toggle" type="button" aria-pressed="${soundEnabled}" aria-label="${soundLabel()}" title="${soundLabel()}">${soundIcon()}</button><button class="lang" type="button" aria-label="${lang==='en'?'التبديل إلى العربية':'Switch to English'}">${lang==='en'?'العربية':'EN'}</button><a class="pill small" href="#contact">${esc(t.cta)} ${icon('arrow')}</a></div></header>
 <nav class="mobile-nav" aria-label="${esc(t.cta)}">${mobileNav}</nav>
 <main>
 <section class="hero"><div class="hero-copy"><p class="eyebrow"><i></i>${esc(t.eyebrow)}</p><h1>${esc(t.heroTop)}<br><em>${esc(t.heroBottom)}</em></h1><p class="intro">${esc(t.intro)}</p><div class="actions"><a class="pill" href="#work">${esc(t.viewWork)} ${icon('down')}</a><a class="text-link" href="${safeUrl(content.calendar)}" target="_blank" rel="noopener">${icon('calendar')} ${esc(t.book)} ${icon('arrow')}</a></div></div>
@@ -81,6 +152,7 @@ function render(){
 
 function wire(){
   const t=content[lang];
+  syncSoundToggle();
   document.querySelector('.lang').onclick=()=>{
     lang=lang==='en'?'ar':'en';
     localStorage.setItem('portfolio-language',lang);
@@ -94,7 +166,20 @@ function wire(){
     app.classList.remove('site-enter');
     if(effectsEnabled)requestAnimationFrame(()=>app.classList.add('site-enter'));
   };
-  document.querySelectorAll('[data-project]').forEach(card=>{card.onclick=()=>openProject(Number(card.dataset.project));});
+  document.querySelector('.sound-toggle').onclick=()=>{
+    soundEnabled=!soundEnabled;
+    localStorage.setItem('portfolio-sound',soundEnabled?'on':'off');
+    if(soundEnabled){
+      unlockAudio();
+      if(masterGain)masterGain.gain.setTargetAtTime(1,audioContext.currentTime,0.01);
+      playHover();
+    }else if(masterGain){
+      masterGain.gain.setTargetAtTime(0,audioContext.currentTime,0.01);
+    }
+    syncSoundToggle();
+    soundStatus.textContent=soundEnabled?(lang==='ar'?'الصوت يعمل':'Sound on'):(lang==='ar'?'الصوت مكتوم':'Sound muted');
+  };
+  document.querySelectorAll('[data-project]').forEach(card=>{card.onclick=()=>{playTap();openProject(Number(card.dataset.project));};});
   const hero=document.querySelector('#heroVideo'),motion=document.querySelector('#motion'),filmMedia=document.querySelector('.film-media');
   const sync=()=>{
     motion.innerHTML=icon(hero.paused?'play':'pause');
@@ -104,6 +189,7 @@ function wire(){
   hero.onplaying=sync;hero.onpause=sync;hero.onwaiting=()=>filmMedia.classList.remove('is-playing');hero.onerror=()=>filmMedia.classList.remove('is-playing');sync();
   motion.onclick=()=>{hero.paused?hero.play().catch(sync):hero.pause();};
   document.querySelector('.showreel-open').onclick=()=>{
+    playSwell();
     showreelDialog.setAttribute('aria-label',lang==='ar'?'الشو ريل':'Showreel');
     showreelDialog.querySelector('.close').setAttribute('aria-label',t.close||'Close');
     showreelDialog.showModal();
