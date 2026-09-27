@@ -134,11 +134,23 @@ showreelDialog.querySelector('.close').onclick=()=>{showreelPlayer.pause();showr
 showreelDialog.onclick=event=>{if(event.target===showreelDialog){showreelPlayer.pause();showreelDialog.close();}};
 showreelDialog.onclose=()=>{showreelPlayer.pause();showreelPlayer.currentTime=0;document.body.classList.remove('modal-open');};
 
+async function loadContent(){
+  let lastError;
+  for(const source of ['/api/content','/content.json']){
+    try{
+      const response=await fetch(source,{cache:'no-store'});
+      if(!response.ok)throw new Error(`${source}: HTTP ${response.status}`);
+      const data=await response.json();
+      if(!Array.isArray(data?.projects)||!data.en||!data.ar)throw new Error(`${source}: invalid content`);
+      return data;
+    }catch(error){lastError=error;}
+  }
+  throw lastError;
+}
+
 async function boot(){
   try{
-    const response=await fetch('/api/content',{cache:'no-store'});
-    if(!response.ok)throw new Error(`HTTP ${response.status}`);
-    content=await response.json();
+    content=await loadContent();
     render();wire();
     if(effectsEnabled)requestAnimationFrame(()=>app.classList.add('site-enter'));
   }catch(error){
