@@ -63,7 +63,7 @@ export function startMotion({lang,enabled,onFloat}){
       node.style.setProperty('--float-delay',`${index*-.85}s`);
       node.innerHTML='<i></i>';
       layer.append(node);
-      return {node,x,y,near:false};
+      return {node,near:false,rx:0,ry:0};
     });
     document.body.append(layer);
     cleaners.push(()=>layer.remove());
@@ -75,12 +75,16 @@ export function startMotion({lang,enabled,onFloat}){
         floatFrame=requestAnimationFrame(()=>{
           floatFrame=0;
           for(const object of objects){
-            const dx=object.x*innerWidth-point.x,dy=object.y*innerHeight-point.y;
-            const distance=Math.hypot(dx,dy),near=distance<145;
-            const force=near?Math.pow(1-distance/145,1.4)*125:0;
+            const rect=object.node.firstElementChild.getBoundingClientRect();
+            const dx=rect.left+rect.width/2-object.rx-point.x;
+            const dy=rect.top+rect.height/2-object.ry-point.y;
+            const distance=Math.hypot(dx,dy),near=distance<185;
+            const force=near?Math.pow(1-distance/185,1.25)*165:0;
             const angle=distance?Math.atan2(dy,dx):0;
-            object.node.style.setProperty('--repel-x',`${(Math.cos(angle)*force).toFixed(1)}px`);
-            object.node.style.setProperty('--repel-y',`${(Math.sin(angle)*force).toFixed(1)}px`);
+            object.rx=Math.cos(angle)*force;
+            object.ry=Math.sin(angle)*force;
+            object.node.style.setProperty('--repel-x',`${object.rx.toFixed(1)}px`);
+            object.node.style.setProperty('--repel-y',`${object.ry.toFixed(1)}px`);
             if(near&&!object.near)onFloat?.();
             object.near=near;
           }
@@ -92,7 +96,6 @@ export function startMotion({lang,enabled,onFloat}){
   }
 
   if(fine&&!reduced){
-    document.body.classList.add('has-custom-pointer');
     const hero=document.querySelector('.hero-stage');
     if(hero){
       let heroRect,heroFrame=0,heroPoint;
@@ -146,24 +149,32 @@ export function startMotion({lang,enabled,onFloat}){
     }
     let cursor=document.querySelector('.custom-cursor');
     if(!cursor){cursor=document.createElement('div');cursor.className='custom-cursor';cursor.setAttribute('aria-hidden','true');document.body.append(cursor);}
+    let aura=document.querySelector('.pointer-aura');
+    if(!aura){aura=document.createElement('div');aura.className='pointer-aura';aura.setAttribute('aria-hidden','true');document.body.append(aura);}
     let pointerX=-100,pointerY=-100,pointerFrame=false;
     const pointer=event=>{
       if(event.pointerType==='touch')return;
       pointerX=event.clientX;pointerY=event.clientY;
       const hidden=!!event.target.closest?.('input,textarea,select,[contenteditable="true"]');
       const watch=!!event.target.closest?.('[data-cursor],.project-card,.film-media,.showreel-open');
-      const action=!watch&&!!event.target.closest?.('a,button,summary');
-      cursor.classList.toggle('active',!hidden);
+      const action=!watch&&!!event.target.closest?.('a,button,summary,[role="button"]');
+      aura.classList.toggle('visible',!hidden);
+      aura.classList.toggle('on-control',action);
+      aura.classList.toggle('on-watch',watch);
+      cursor.classList.toggle('active',watch&&!hidden);
       cursor.classList.toggle('watch',watch);
-      cursor.classList.toggle('on-control',action);
-      cursor.textContent=watch?(lang==='ar'?'شاهد':'WATCH'):(action?(lang==='ar'?'اضغط':'CLICK'):'');
-      if(!pointerFrame){pointerFrame=true;requestAnimationFrame(()=>{pointerFrame=false;cursor.style.transform=`translate3d(${pointerX}px,${pointerY}px,0) translate(-50%,-50%)`;});}
+      cursor.textContent=watch?(lang==='ar'?'شاهد':'WATCH'):'';
+      if(!pointerFrame){pointerFrame=true;requestAnimationFrame(()=>{
+        pointerFrame=false;
+        cursor.style.transform=`translate3d(${pointerX}px,${pointerY}px,0) translate(-50%,-50%) scale(var(--cursor-scale,1))`;
+        aura.style.transform=`translate3d(${pointerX-15}px,${pointerY-15}px,0) scale(var(--aura-scale,1))`;
+      });}
     };
     on(document,'pointermove',pointer,{passive:true});
-    on(document,'pointerdown',()=>cursor.classList.add('pressed'));
-    on(document,'pointerup',()=>cursor.classList.remove('pressed'));
-    on(document,'pointerleave',()=>cursor.classList.remove('active'));
-    cleaners.push(()=>{document.body.classList.remove('has-custom-pointer');cursor.classList.remove('active','watch','on-control');});
+    on(document,'pointerdown',()=>{cursor.classList.add('pressed');aura.classList.add('pressed');});
+    on(document,'pointerup',()=>{cursor.classList.remove('pressed');aura.classList.remove('pressed');});
+    on(document,'pointerleave',()=>{cursor.classList.remove('active');aura.classList.remove('visible');});
+    cleaners.push(()=>{cursor.classList.remove('active','watch','pressed');aura.classList.remove('visible','on-control','on-watch','pressed');});
   }
   dispose=()=>{cleaners.forEach(clean=>clean());};
 }

@@ -13,7 +13,7 @@ const systemReducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches
 const savedEffects=localStorage.getItem('portfolio-effects');
 let effectsEnabled=savedEffects==='on'||(savedEffects!=='off'&&!systemReducedMotion);
 let soundEnabled=localStorage.getItem('portfolio-sound')!=='off';
-let audioUnlocked=false,audioContext,masterGain,lastHoverAt=0,ambientVoices=[],ambientGain,ambientTimer;
+let audioUnlocked=false,audioContext,masterGain,lastHoverAt=0,ambientVoices=[],ambientGain,ambientTimer,ambientTexture;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeUrl=value=>{try{const url=new URL(value,location.origin);return ['http:','https:'].includes(url.protocol)?esc(value):'#';}catch{return '#';}};
 
@@ -39,7 +39,7 @@ function audio(){
     if(!audioContext){
       audioContext=new AudioContextClass();
       masterGain=audioContext.createGain();
-      masterGain.gain.value=.78;
+      masterGain.gain.value=.65;
       masterGain.connect(audioContext.destination);
     }
     if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
@@ -55,7 +55,7 @@ function tone({from,to,duration,peak,attack=0.006,delay=0,type='sine'}){
   oscillator.frequency.setValueAtTime(from,now);
   oscillator.frequency.exponentialRampToValueAtTime(to,now+duration);
   gain.gain.setValueAtTime(0.0001,now);
-  gain.gain.exponentialRampToValueAtTime(peak,now+attack);
+  gain.gain.exponentialRampToValueAtTime(peak*.35,now+attack);
   gain.gain.exponentialRampToValueAtTime(0.0001,now+duration);
   oscillator.connect(gain).connect(masterGain);
   oscillator.start(now);
@@ -66,40 +66,63 @@ function startAmbient(){
   if(!context||document.hidden||ambientVoices.length)return;
   ambientGain=context.createGain();
   ambientGain.gain.setValueAtTime(0,context.currentTime);
-  ambientGain.gain.linearRampToValueAtTime(.018,context.currentTime+2.4);
+  ambientGain.gain.linearRampToValueAtTime(.012,context.currentTime+4);
   ambientGain.connect(masterGain);
-  const chords=[[110,164.81,220,329.63],[116.54,174.61,233.08,349.23],[98,146.83,196,293.66],[110,164.81,220,329.63]];
+  // A soft, slowly breathing room tone, rather than a sequence of alert sounds.
+  const chords=[[55,82.41,110],[58.27,87.31,116.54],[49,73.42,98],[55,82.41,110]];
   chords[0].forEach((frequency,index)=>{
     const voice=context.createOscillator(),level=context.createGain();
-    voice.type=index===0?'triangle':'sine';
+    voice.type='sine';
     voice.frequency.value=frequency;
-    level.gain.value=index===0?.3:index===3?.38:.58;
+    level.gain.value=index===0?.42:index===1?.22:.16;
     voice.connect(level).connect(ambientGain);
     voice.start();
     ambientVoices.push(voice);
   });
+  if(context.createBuffer&&context.createBufferSource&&context.createBiquadFilter){
+    const length=Math.round(context.sampleRate*3);
+    const buffer=context.createBuffer(1,length,context.sampleRate);
+    const samples=buffer.getChannelData(0);
+    let softened=0;
+    for(let i=0;i<length;i++){
+      softened=(softened+(Math.random()*2-1)*.035)/1.035;
+      samples[i]=softened;
+    }
+    const source=context.createBufferSource(),filter=context.createBiquadFilter(),level=context.createGain();
+    source.buffer=buffer;source.loop=true;
+    filter.type='lowpass';filter.frequency.value=850;
+    level.gain.value=.11;
+    source.connect(filter).connect(level).connect(ambientGain);
+    source.start();ambientTexture=source;
+  }
   let chord=0;
   ambientTimer=setInterval(()=>{
     if(!soundEnabled||document.hidden)return;
     chord=(chord+1)%chords.length;
     const now=context.currentTime;
-    ambientVoices.forEach((voice,index)=>voice.frequency.exponentialRampToValueAtTime(chords[chord][index],now+3.2));
-  },7600);
+    ambientVoices.forEach((voice,index)=>voice.frequency.exponentialRampToValueAtTime(chords[chord][index],now+7));
+    ambientGain.gain.cancelScheduledValues(now);
+    ambientGain.gain.setValueAtTime(ambientGain.gain.value,now);
+    ambientGain.gain.linearRampToValueAtTime(chord%2?.009:.012,now+6);
+  },11500);
 }
 function stopAmbient(){
   clearInterval(ambientTimer);ambientTimer=undefined;
   if(!audioContext||!ambientVoices.length)return;
   const voices=ambientVoices;
   ambientVoices=[];
+  const texture=ambientTexture;
+  ambientTexture=undefined;
   ambientGain.gain.cancelScheduledValues(audioContext.currentTime);
-  ambientGain.gain.setTargetAtTime(0,audioContext.currentTime,.12);
-  voices.forEach(voice=>{voice.stop(audioContext.currentTime+.7);voice.onended=()=>voice.disconnect();});
+  ambientGain.gain.setTargetAtTime(0,audioContext.currentTime,.25);
+  voices.forEach(voice=>{voice.stop(audioContext.currentTime+1.2);voice.onended=()=>voice.disconnect();});
+  if(texture){texture.stop(audioContext.currentTime+1.2);texture.onended=()=>texture.disconnect();}
   ambientGain=undefined;
 }
 function playHover(){
   if(!soundEnabled)return;
   const now=performance.now();
-  if(now-lastHoverAt<95)return;
+  if(now-lastHoverAt<170)return;
   lastHoverAt=now;
   tone({from:720,to:540,duration:0.075,peak:0.026,attack:0.006});
   tone({from:1080,to:810,duration:0.095,peak:0.009,attack:0.009,delay:0.012});
@@ -136,14 +159,14 @@ function playFloat(){
   const now=performance.now();
   if(now-lastFloatSound<650)return;
   lastFloatSound=now;
-  tone({from:620,to:390,duration:0.17,peak:0.01,attack:0.035});
+  tone({from:360,to:300,duration:0.22,peak:0.004,attack:0.06});
 }
 function playClose(){tone({from:410,to:230,duration:0.11,peak:0.013,attack:0.012});}
 function unlockAudio(){
   if(audioUnlocked)return;
   audioUnlocked=true;
   document.querySelector('.sound-entry')?.remove();
-  if(soundEnabled){audio();startAmbient();playArrival();}
+  if(soundEnabled){audio();startAmbient();}
 }
 document.addEventListener('pointerdown',unlockAudio,{once:true,capture:true});
 document.addEventListener('touchend',unlockAudio,{once:true,capture:true});
